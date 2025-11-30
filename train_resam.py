@@ -484,7 +484,7 @@ def train_sam(
                         loss_iou += F.mse_loss(iou_prediction.view(-1), batch_iou.view(-1), reduction='sum') / num_masks
 
                 del  pred_masks, iou_predictions 
-                del pred_stack, pred_binary, overlap_map, invert_overlap_map
+                del pred_stack, overlap_map, invert_overlap_map
                 torch.cuda.empty_cache()
                 # loss_dist = loss_dist / num_masks
                 loss_dice = loss_dice / num_masks
