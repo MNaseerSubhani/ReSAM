@@ -1,4 +1,4 @@
-<!-- <div align="center">
+<div align="center">
     
 # PointSAM: Pointly-Supervised Segment Anything Model for Remote Sensing Images
 <p align="center">
@@ -29,7 +29,7 @@
 
 ## 🎨 Overview
 
-![PDF Page](assets/overview.jpg)
+<!-- ![PDF Page](assets/overview.jpg) -->
 
 ## 🎮 Getting Started
 ### 1.Install Environment
@@ -164,4 +164,4 @@ If you find this project useful in your research, please consider starring ⭐ a
 
 Place Whu train and val folder in whu folder
 
-for hrsid only sacve images -->
+for hrsid only sacve images
