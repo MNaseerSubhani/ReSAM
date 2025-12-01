@@ -183,6 +183,27 @@ def create_entropy_mask(entropy_maps, threshold=0.5, device='cuda'):
     return entropy_masks
 
 
+# def process_forward(img_tensor, prompt, model):
+#     with torch.no_grad():
+#         _, masks_pred, _, _ = model(img_tensor, prompt)
+#     entropy_maps = []
+#     pred_ins = []
+#     eps=1e-8
+#     for i, mask_p in enumerate( masks_pred[0]):
+#         mask_p = torch.sigmoid(mask_p)
+#         p = mask_p.clamp(1e-6, 1 - 1e-6)
+#         if p.ndim == 2:
+#             p = p.unsqueeze(0)
+
+#         # entropy_map = entropy_map_calculate(p)
+#         entropy = - (p * torch.log(p + eps) + (1 - p) * torch.log(1 - p + eps))
+#         max_ent = torch.log(torch.tensor(2.0, device=mask_p.device))
+#         entropy_norm = entropy / (max_ent + 1e-8)   # [0, 1]
+#         entropy_maps.append(entropy_norm)
+#         pred_ins.append(p)
+
+#     return entropy_maps, pred_ins
+
 def process_forward(img_tensor, prompt, model):
     with torch.no_grad():
         _, masks_pred, _, _ = model(img_tensor, prompt)
@@ -196,13 +217,26 @@ def process_forward(img_tensor, prompt, model):
             p = p.unsqueeze(0)
 
         # entropy_map = entropy_map_calculate(p)
-        entropy = - (p * torch.log(p + eps) + (1 - p) * torch.log(1 - p + eps))
-        max_ent = torch.log(torch.tensor(2.0, device=mask_p.device))
-        entropy_norm = entropy / (max_ent + 1e-8)   # [0, 1]
-        entropy_maps.append(entropy_norm)
+        # entropy = - (p * torch.log(p + eps) + (1 - p) * torch.log(1 - p + eps))
+        # max_ent = torch.log(torch.tensor(2.0, device=mask_p.device))
+        # entropy_norm = entropy / (max_ent + 1e-8)   # [0, 1]
+        # entropy_maps.append(entropy_norm)
         pred_ins.append(p)
 
-    return entropy_maps, pred_ins
+    P = torch.stack(pred_ins, dim=0)
+    P_sum = P.sum(dim=0, keepdim=True) + eps     # (1, H, W)
+    P_norm = P / P_sum 
+
+    # Compute entropy
+    entropy = - (P_norm * torch.log(P_norm + eps)).sum(dim=0)  # (H, W)
+
+    # Normalize entropy to [0, 1]
+    max_ent = torch.log(torch.tensor(P.shape[0], device=P.device).float())
+    entropy_norm = entropy / (max_ent + eps)
+
+
+    return entropy_norm, pred_ins
+        
         
         
         
@@ -373,12 +407,13 @@ def train_sam(
                 entropy_maps, preds = process_forward(images_weak, prompts, model)
                 
                 pred_stack = torch.stack(preds, dim=0)
-                entropy_maps = torch.stack(entropy_maps, dim=0)
+                # entropy_maps = torch.stack(entropy_maps, dim=0)
 
+              
 
                 
                 # mean_thresh = pred_stack[pred_stack > 0.5].mean()
-                mean_thresh = 0.7
+                # mean_thresh = 0.5
                 # pred_binary = (((pred_stack)>mean_thresh) ).float()
                 overlap_count = pred_stack.sum(dim=0)
                 overlap_map = (overlap_count > 1).float()
@@ -399,12 +434,12 @@ def train_sam(
                 bboxes = []
                 point_list = []
                 point_labels_list = []
-                for i,  (pred, entr) in enumerate( zip(preds, entropy_maps)):
+                for i,  pred in enumerate( preds):
                     point_coords = prompts[0][0][i][:].unsqueeze(0)
                     point_coords_lab = prompts[0][1][i][:].unsqueeze(0)
 
-                    pred = (pred[0]>mean_thresh)
-                    pred_w_overlap = (pred * invert_overlap_map[0] ) * (1 - entr[0])
+                    # pred = (pred[0]>mean_thresh)
+                    pred_w_overlap = (pred[0] * invert_overlap_map[0] ) * (1 - entropy_maps[0])
 
                     ys, xs = torch.where(pred_w_overlap > 0.5)
                     if len(xs) > 0 and len(ys) > 0:
