@@ -413,8 +413,8 @@ def train_sam(
 
                 
                 # mean_thresh = pred_stack[pred_stack > 0.5].mean()
-                mean_thresh = 0.5 + 0.3*(1-entropy_maps[0])
-                # pred_binary = (((pred_stack)>mean_thresh) ).float()
+                mean_thresh = 0.7
+                pred_binary = (((pred_stack)>mean_thresh) ).float()
                 overlap_count = pred_stack.sum(dim=0)
                 overlap_map = (overlap_count > 1).float()
                 invert_overlap_map = 1.0 - overlap_map
@@ -443,7 +443,7 @@ def train_sam(
                     pred = (pred[0]>mean_thresh)
                     
               
-                    pred_w_overlap = (pred * invert_overlap_map[0] )   #* (1 - entropy_maps[0]
+                    pred_w_overlap = (pred * invert_overlap_map[0] ) - (1 - entropy_maps[0]   #* 
 
                     ys, xs = torch.where(pred_w_overlap > 0.5)
                     if len(xs) > 0 and len(ys) > 0:
@@ -531,7 +531,7 @@ def train_sam(
                 loss_sim  = loss_sim
              
 
-                loss_total =  (  loss_focal +  loss_dice  + loss_iou + 0.1*loss_sim     )#+ 
+                loss_total =  (20 * loss_focal +  loss_dice  + loss_iou + 0.1*loss_sim     )#+ 
                 if watcher.is_outlier(loss_total):
                     continue
                 fabric.backward(loss_total)
