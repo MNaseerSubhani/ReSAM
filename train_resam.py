@@ -441,6 +441,8 @@ def train_sam(
                     point_coords_lab = prompts[0][1][i][:].unsqueeze(0)
 
                     pred = (pred[0]>mean_thresh)
+                    
+              
                     pred_w_overlap = (pred * invert_overlap_map[0] )   #* (1 - entropy_maps[0]
 
                     ys, xs = torch.where(pred_w_overlap > 0.5)
@@ -529,7 +531,7 @@ def train_sam(
                 loss_sim  = loss_sim
              
 
-                loss_total =  (20 * loss_focal +  loss_dice  + loss_iou + 0.1*loss_sim     )#+ 
+                loss_total =  (  loss_focal +  loss_dice  + loss_iou + 0.1*loss_sim     )#+ 
                 if watcher.is_outlier(loss_total):
                     continue
                 fabric.backward(loss_total)
