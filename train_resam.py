@@ -444,7 +444,7 @@ def train_sam(
                     pred = (pred[0]>mean_thresh)
                     
               
-                    pred_w_overlap = ((pred *invert_overlap_map[0] * (1-ent[0]) ) )#* (1- ent[0] )).float()  #* 
+                    pred_w_overlap = ((pred *invert_overlap_map[0] * ((1 - 0.25 * ent[0])) ) )#* (1- ent[0] )).float()  #* 
 
                     ys, xs = torch.where(pred_w_overlap > 0.5)
                     if len(xs) > 0 and len(ys) > 0:
