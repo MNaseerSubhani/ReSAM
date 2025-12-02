@@ -408,7 +408,7 @@ def train_sam(
                 entropy_maps, preds = process_forward(images_weak, prompts, model)
                 
                 pred_stack = torch.stack(preds, dim=0)
-                # entropy_maps = torch.stack(entropy_maps, dim=0)
+                entropy_maps = torch.stack(entropy_maps, dim=0)
 
               
 
