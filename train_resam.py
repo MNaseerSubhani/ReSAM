@@ -257,13 +257,13 @@ from collections import deque
 # persistent feature queue
 feature_queue = deque(maxlen=32)  # keep up to 512 previous object embeddings
 
-def similarity_loss(features, queue, tau=0.07):
+def similarity_loss(g,features, queue, tau=0.07):
     """
     features: [B, D] current batch embeddings (normalized)
     queue: deque of [D] past embeddings (detached)
     """
     if len(queue) == 0:
-        return torch.tensor(0., device=features.device)
+        return torch.tensor(0., device=g.device)
 
     # Stack all past features from queue
     with torch.no_grad():
@@ -495,7 +495,7 @@ def train_sam(
                 if len(batch_feats) > 0:
                  
                     batch_feats = F.normalize(torch.stack(batch_feats, dim=0), dim=1)
-                    loss_sim = similarity_loss(feature_queue, feature_queue)
+                    loss_sim = similarity_loss(batch_feats,feature_queue, feature_queue)
               
                     # add new features to queue (detach to avoid backprop)
                     for f in batch_feats:
