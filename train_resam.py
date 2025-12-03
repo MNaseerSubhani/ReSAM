@@ -447,7 +447,7 @@ def train_sam(
                 # mean_thresh = pred_stack[pred_stack > 0.5].mean()
                 # mean_thresh = 0.7
                 # pred_binary = (((pred_stack) ) > 0.7).float()
-                pred_binary = ((entropy_maps < 0.7) & (pred_stack > 0.5) ).float()
+                pred_binary = ((entropy_maps < 0.8) & (pred_stack > 0.5) ).float()
                 overlap_count = pred_binary.sum(dim=0)
                 overlap_map = (overlap_count > 1).float()
                 invert_overlap_map = 1.0 - overlap_map
