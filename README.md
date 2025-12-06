@@ -1,7 +1,6 @@
 <div align="center">
     
-# ReSAM: Refine, Requery, and Reinforce: Self-Prompting Point-Supervised
-Segmentation for Remote Sensing Images
+# ReSAM: Refine, Requery, and Reinforce: Self-Prompting Point-Supervised Segmentation for Remote Sensing Images
 <p align="center">
     <img src="https://i.imgur.com/waxVImv.png" alt="Oryx Video-ChatGPT">
 </p>
