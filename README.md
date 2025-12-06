@@ -1,35 +1,25 @@
 <div align="center">
     
-# PointSAM: Pointly-Supervised Segment Anything Model for Remote Sensing Images
+# ReSAM: Refine, Requery, and Reinforce: Self-Prompting Point-Supervised
+Segmentation for Remote Sensing Images
 <p align="center">
     <img src="https://i.imgur.com/waxVImv.png" alt="Oryx Video-ChatGPT">
 </p>
 
-[![paper](https://img.shields.io/badge/arXiv-Paper-<COLOR>.svg)](https://arxiv.org/abs/2409.13401)
+[![paper](https://img.shields.io/badge/arXiv-Paper-<COLOR>.svg)](https://arxiv.org/abs/2511.21606)
 
 </div>
 
-<!--
----
 
-## ❗️Notice
-
-**Because the issue has been abused recently, I have temporarily closed it. If you have any questions, you can contact me via email at lansing163@163.com.**
--->
-
-
----
 ## 📢 Latest Updates
-- **2 Jan 2025**: **PointSAM** has been accepted by TGRS and is now available [here](https://ieeexplore.ieee.org/document/10839471).
-- **8 Dec 2024**: The complete code is released.
-- **20 Sep 2024**: The arXiv version is released [here](https://arxiv.org/abs/2409.13401).
+- **26 Nov 2025**: The arXiv version is released [here](https://arxiv.org/abs/2511.21606).
 ---
 
 
 
-## 🎨 Overview
+## 🖌️ Overview
 
-![PDF Page](assets/overview.jpg)
+![PDF Page](assets/method.png)
 
 ## 🎮 Getting Started
 ### 1.Install Environment
@@ -138,10 +128,7 @@ Please replace `<CONFIG_FILE_PATH>`, `<OUTPUT_DIR>`, and `<CHECKPOINT_PATH>` wit
 
 
 ## 💡 Acknowledgement
-
-- [wesam](https://github.com/zhang-haojie/wesam)
-- [OWOD](https://github.com/JosephKJ/OWOD)
-- [RSPrompter](https://github.com/KyanChen/RSPrompter)
+- [PointSAM](https://github.com/Lans1ng/PointSAM)
 
 
 ## 🖊️ Citation
@@ -149,16 +136,12 @@ Please replace `<CONFIG_FILE_PATH>`, `<OUTPUT_DIR>`, and `<CHECKPOINT_PATH>` wit
 If you find this project useful in your research, please consider starring ⭐ and citing 📚:
 
 ```BibTeX
-@ARTICLE{10839471,
-  author={Liu, Nanqing and Xu, Xun and Su, Yongyi and Zhang, Haojie and Li, Heng-Chao},
-  journal={IEEE Transactions on Geoscience and Remote Sensing}, 
-  title={PointSAM: Pointly-Supervised Segment Anything Model for Remote Sensing Images}, 
-  year={2025},
-  volume={63},
-  number={},
-  pages={1-15},
-  doi={10.1109/TGRS.2025.3529031}}
-
+@article{subhani2025resam,
+  title={ReSAM: Refine, Requery, and Reinforce: Self-Prompting Point-Supervised Segmentation for Remote Sensing Images},
+  author={Subhani, M Naseer},
+  journal={arXiv preprint arXiv:2511.21606},
+  year={2025}
+}
 ```
 
 
