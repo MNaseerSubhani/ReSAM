@@ -562,11 +562,7 @@ def train_sam(
             
 
             if (iter+1) % match_interval==0:
-                torch.cuda.synchronize()
-                current_mem = torch.cuda.memory_allocated() / (1024**2)  # MB
-                peak_mem = torch.cuda.max_memory_allocated() / (1024**2)  # MB
-                print(f"Current GPU memory: {current_mem:.2f} MB")
-                print(f"Peak GPU memory this batch: {peak_mem:.2f} MB")
+         
                 fabric.print(
                     f"Epoch [{epoch}] Iter [{iter + 1}/{len(train_dataloader)}] " f"| Time {batch_time.avg:.2f}s "
                     f"| Focal {focal_losses.avg:.4f} | Dice {dice_losses.avg:.4f} | "
