@@ -216,11 +216,10 @@ def process_forward(img_tensor, prompt, model):
         if p.ndim == 2:
             p = p.unsqueeze(0)
 
-        entropy_map = entropy_map_calculate(p)
         entropy = - (p * torch.log(p + eps) + (1 - p) * torch.log(1 - p + eps))
         max_ent = torch.log(torch.tensor(2.0, device=mask_p.device))
         entropy_norm = entropy / (max_ent + 1e-8)   # [0, 1]
-        entropy_maps.append(entropy)
+        entropy_maps.append(entropy_norm)
         pred_ins.append(p)
 
 
@@ -311,6 +310,7 @@ def similarity_loss(features, queue, tau=0.07, sim_threshold=0.5):
     return loss
         
 def entropy_map_calculate(p):
+    p = p.clamp(1e-6, 1 - 1e-6)
     entropy_map = - (p * torch.log(p) + (1 - p) * torch.log(1 - p))
     entropy_map = entropy_map.max(dim=0)[0]
 
