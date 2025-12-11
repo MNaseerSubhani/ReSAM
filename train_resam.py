@@ -400,7 +400,7 @@ def train_sam(
             if (iter+1) % eval_interval == 0:
                 avg_means, _ = validate(fabric, cfg, model, val_dataloader, cfg.name, epoch)
                 # avg_means = sum(entropy_means) / len(entropy_means)
-                status = ""
+                status = "" 
                 if avg_means > 0:  #best_ent
                     best_ent = avg_means
                     best_state = copy.deepcopy(model.state_dict())
