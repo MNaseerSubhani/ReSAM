@@ -8,7 +8,7 @@
 
 
 ## 🚀 Latest Updates
-- SAM2 training: comming soon
+- SAM2 training: coming soon
 - **26 Nov 2025**: The arXiv version is released [here](https://arxiv.org/abs/2511.21606).
 ---
 
