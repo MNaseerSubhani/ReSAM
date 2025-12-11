@@ -8,7 +8,7 @@
 
 
 ## 🚀 Latest Updates
-- SAM2 training: commming soon
+- SAM2 training: comming soon
 - **26 Nov 2025**: The arXiv version is released [here](https://arxiv.org/abs/2511.21606).
 ---
 
@@ -90,8 +90,6 @@ data
 
 Click the links below to download the checkpoint for the corresponding model type.
 
-- `vit-h`: [ViT-H SAM model.](https://dl.fbaipublicfiles.com/segment_anything/sam_vit_h_4b8939.pth)
-- `vit-l`: [ViT-L SAM model.](https://dl.fbaipublicfiles.com/segment_anything/sam_vit_l_0b3195.pth)
 - `vit-b`: [ViT-B SAM model.](https://dl.fbaipublicfiles.com/segment_anything/sam_vit_b_01ec64.pth)
 
 After downloading, move the models to the `pretrain` folder.
@@ -99,30 +97,10 @@ After downloading, move the models to the `pretrain` folder.
 **Note**: In our project, only the `vit-b` model is used.
 
 ### 4.Training
-For convenience, the `scripts` folder contains instructions for **Supervised Training**, **Self-Training**, and **PointSAM** on the NWPU VHR-10, WHU, and HRSID datasets.
-
-Here’s an example of training PointSAM on the WHU dataset:
+Here’s an example of training ReSAM on the NWPU dataset:
 ```bash
-bash scripts/train_whu_pointsam.sh
+bash scripts/train_resam_nwpu.sh
 ```
-
-### 5. Inference
-
-Here’s an example of how to perform inference:
-
-```
-python inference.py --cfg <CONFIG_FILE_PATH> --out_dir <OUTPUT_DIR> --ckpt <CHECKPOINT_PATH>
-```
-
-Please replace `<CONFIG_FILE_PATH>`, `<OUTPUT_DIR>`, and `<CHECKPOINT_PATH>` with the values of the actual path.
-
-**Note:** The generated results consist of four images arranged in parallel:  
-
-- The first image is the original input image.  
-- The second image is the visualization of the GT mask.  
-- The third image is the result obtained by direct testing through the original SAM.  
-- The fourth image is the result obtained using the provided checkpoint.
-
 
 ## 💡 Acknowledgement
 - [PointSAM](https://github.com/Lans1ng/PointSAM)
