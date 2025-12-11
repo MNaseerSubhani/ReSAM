@@ -1,16 +1,14 @@
 <div align="center">
     
 # ReSAM: Refine, Requery, and Reinforce: Self-Prompting Point-Supervised Segmentation for Remote Sensing Images
-<p align="center">
-    <img src="https://i.imgur.com/waxVImv.png" alt="Oryx Video-ChatGPT">
-</p>
 
 [![paper](https://img.shields.io/badge/arXiv-Paper-<COLOR>.svg)](https://arxiv.org/abs/2511.21606)
 
 </div>
 
 
-## 📢 Latest Updates
+## 🚀 Latest Updates
+- SAM2 training: commming soon
 - **26 Nov 2025**: The arXiv version is released [here](https://arxiv.org/abs/2511.21606).
 ---
 
@@ -22,19 +20,18 @@
 
 ## 🎮 Getting Started
 ### 1.Install Environment
-To ensure compatibility, **Python version must not exceed 3.10**. Follow these steps to set up your environment:
+> **Python 3.10**. Follow these steps to set up your environment:
 ```bash
-conda create --name pointsam python=3.10
-conda activate pointsam
+conda create --name resam python=3.10
+conda activate resam
 
 pip install torch==2.3.1 torchvision==0.18.1 torchaudio==2.3.1 --index-url https://download.pytorch.org/whl/cu118
-git clone https://github.com/Lans1ng/PointSAM.git
-cd PointSAM
+git clone https://github.com/MNaseerSubhani/ReSAM.git
+cd resam
 pip install -r requirements.txt
 ```
 
-**Note:**
-The CUDA version in the `pip install` command is specified as `cu118` (CUDA 11.8). If your system uses a different CUDA version (e.g., CUDA 12.1), replace `cu118` with the appropriate version tag (e.g., `cu121`). 
+
 
 ### 2.Prepare Dataset 
 
@@ -42,7 +39,7 @@ The CUDA version in the `pip install` command is specified as `cu118` (CUDA 11.8
 
 - Dataset download address: [WHU Building Dataset](https://aistudio.baidu.com/datasetdetail/56502)。
 
-- For converting semantic label to instance label, you can refer to corresponding [conversion script](https://github.com/KyanChen/RSPrompter/blob/release/tools/rsprompter/whu2coco.py).
+<!-- - For converting semantic label to instance label, you can refer to corresponding [conversion script](https://github.com/KyanChen/RSPrompter/blob/release/tools/rsprompter/whu2coco.py). -->
 
 #### HRSID Dataset
 
@@ -54,7 +51,8 @@ The CUDA version in the `pip install` command is specified as `cu118` (CUDA 11.8
 
 - Instance label download address: [NWPU VHR-10 Instance Label](https://github.com/chaozhong2010/VHR-10_dataset_coco).
 
-For convenience, the necessary JSON annotations are included in this repo. You only need to download the corresponding images. Organize your dataset as follows:
+
+ You only need to download the corresponding images. Organize your dataset as follows:
 
 ```
 data 
@@ -128,11 +126,12 @@ Please replace `<CONFIG_FILE_PATH>`, `<OUTPUT_DIR>`, and `<CHECKPOINT_PATH>` wit
 
 ## 💡 Acknowledgement
 - [PointSAM](https://github.com/Lans1ng/PointSAM)
+- [WeSAM](https://github.com/zhang-haojie/wesam)
 
 
 ## 🖊️ Citation
 
-If you find this project useful in your research, please consider starring ⭐ and citing 📚:
+If this work contributes to your research, we kindly encourage you to star ⭐ the repository and include a citation 📚.
 
 ```BibTeX
 @article{subhani2025resam,
@@ -144,6 +143,5 @@ If you find this project useful in your research, please consider starring ⭐ a
 ```
 
 
-Place Whu train and val folder in whu folder
 
-for hrsid only sacve images
+
