@@ -216,11 +216,10 @@ def process_forward(img_tensor, prompt, model):
         if p.ndim == 2:
             p = p.unsqueeze(0)
 
-        entropy_map = entropy_map_calculate(p)
         entropy = - (p * torch.log(p + eps) + (1 - p) * torch.log(1 - p + eps))
         max_ent = torch.log(torch.tensor(2.0, device=mask_p.device))
         entropy_norm = entropy / (max_ent + 1e-8)   # [0, 1]
-        entropy_maps.append(entropy)
+        entropy_maps.append(entropy_norm)
         pred_ins.append(p)
 
 
@@ -311,6 +310,7 @@ def similarity_loss(features, queue, tau=0.07, sim_threshold=0.5):
     return loss
         
 def entropy_map_calculate(p):
+    p = p.clamp(1e-6, 1 - 1e-6)
     entropy_map = - (p * torch.log(p) + (1 - p) * torch.log(1 - p))
     entropy_map = entropy_map.max(dim=0)[0]
 
@@ -435,7 +435,7 @@ def train_sam(
                 entropy_maps = torch.stack(entropy_maps, dim=0)
 
                 # pred_binary = ((entropy_maps < 0.5) & (pred_stack > 0.5) ).float()
-                pred_binary = (((1 - entropy_maps) * (pred_stack>0.7)) > 0.5) .float()
+                pred_binary = (((1 - entropy_maps) * (pred_stack)) > 0.3) .float()
                 overlap_count = pred_binary.sum(dim=0)
                 overlap_map = (overlap_count > 1).float()
                 invert_overlap_map = 1.0 - overlap_map
@@ -540,7 +540,7 @@ def train_sam(
                 loss_sim  = loss_sim
              
 
-                loss_total =  (20 * loss_focal +  loss_dice  + loss_iou +0.1*loss_sim )#      )#+    
+                loss_total =  (20 * loss_focal +  loss_dice  + loss_iou  +0.1*loss_sim   )#      )#+ 
                 if watcher.is_outlier(loss_total):
                     continue
                 fabric.backward(loss_total)
@@ -562,6 +562,7 @@ def train_sam(
             
 
             if (iter+1) % match_interval==0:
+         
                 fabric.print(
                     f"Epoch [{epoch}] Iter [{iter + 1}/{len(train_dataloader)}] " f"| Time {batch_time.avg:.2f}s "
                     f"| Focal {focal_losses.avg:.4f} | Dice {dice_losses.avg:.4f} | "
