@@ -27,13 +27,9 @@ base_config = {
         "jpeg_compression",
     ],
     "model": {
-        "backend": "sam",  # one of: sam, sam2
-        "type": "vit_b",   # for sam: vit_b  for sam2:  sam2.1_hiera_b+
+        "type": "vit_b",
         "checkpoint": "./pretrain/",
         "ckpt": "",
-        # SAM2-specific optional config path and hydra overrides
-        "sam2_config": "",  # e.g., configs/sam2.1/sam2.1_hiera_b+.yaml
-        "sam2_overrides": [],
         "freeze": {
             "image_encoder": True,
             "prompt_encoder": True,
@@ -52,9 +48,9 @@ base_config = {
             "annotation_file_val": "data/WHU/annotations/WHU_building_val.json",
         },
         "HRSID": {
-            "root_dir": "data/HRSID/Images",   
-            "annotation_file_train": "data/HRSID/Annotations/inshore/inshore_train.json",
-            "annotation_file_val": "data/HRSID/Annotations/inshore/inshore_test.json"
+            "root_dir": "/root/autodl-fs/_DATASETS/HRSID/Images",   
+            "annotation_file_train": "/root/autodl-fs/_DATASETS/HRSID/Annotations/inshore/inshore_train.json",
+            "annotation_file_val": "/root/autodl-fs/_DATASETS/HRSID/Annotations/inshore/inshore_test.json"
         },
     },
 }
