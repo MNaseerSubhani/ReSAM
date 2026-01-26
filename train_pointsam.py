@@ -41,6 +41,7 @@ def train_sam(
     max_iou = 0.
     mem_bank = Store(1, cfg.mem_bank_max_len) 
     match_interval = cfg.match_interval
+    epo_start_t = time.time()
     for epoch in range(1, cfg.num_epochs + 1):
         batch_time = AverageMeter()
         data_time = AverageMeter()
@@ -204,6 +205,8 @@ def train_sam(
                 fabric.save(os.path.join(cfg.out_dir, "save", "best-ckpt.pth"), state)
                 max_iou = iou
             del iou 
+        print(f"Epoch time took:: {(time.time()-epo_start_t):.3f}s")
+    
             
 def configure_opt(cfg: Box, model: Model):
 
@@ -266,8 +269,9 @@ def main(cfg: Box) -> None:
     _, _, = validate(fabric, cfg, model, val_data, name=cfg.name, epoch=0)
     print('-'*100)
     del _     
-    
+    start = time.time()
     target_pts = offline_prototypes_generation(cfg, model, pt_data)
+    print(f"Prototype time took:: {(time.time()-start):.3f}s")
     
     train_sam(cfg, fabric, model, optimizer, scheduler, train_data, val_data, target_pts)
 
