@@ -51,6 +51,7 @@ base_config = {
             "root_dir": "data/HRSID/Images",   
             "annotation_file_train": "data/HRSID/Annotations/inshore/inshore_train.json",
             "annotation_file_val": "data/HRSID/Annotations/inshore/inshore_test.json"
+        
         },
     },
 }
