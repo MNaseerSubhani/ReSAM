@@ -279,8 +279,8 @@ def main(cfg: Box) -> None:
     print('-'*100)
     print('\033[92mDirect test on the original SAM.\033[0m') 
     # _, _, = validate(fabric, cfg, model, val_data, name=cfg.name, epoch=0)
-    print('-'*100)
-    del _     
+    # print('-'*100)
+    # del _     
     start = time.time()
     target_pts = offline_prototypes_generation(cfg, model, pt_data)
     print(f"Prototype time took:: {(time.time()-start):.3f}s")
