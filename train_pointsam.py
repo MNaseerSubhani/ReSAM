@@ -184,6 +184,10 @@ def train_sam(
             match_losses.update(loss_match.item(), batch_size)
 
             if (iter+1) %match_interval==0:
+                # peak_mem = torch.cuda.max_memory_allocated() / 1024**3  # GB
+                avg_mem = sum(iter_mem_usage) / len(iter_mem_usage)
+
+                print(f"Average Memory {avg_mem} GB ")
                 fabric.print(f'Epoch: [{epoch}][{iter + 1}/{len(train_dataloader)}]'
                              f' | Time [{batch_time.val:.3f}s ({batch_time.avg:.3f}s)]'
                              f' | Data [{data_time.val:.3f}s ({data_time.avg:.3f}s)]'
@@ -202,9 +206,9 @@ def train_sam(
             # fabric.log_dict(loss_logger, num_iter * (epoch - 1) + iter)
             torch.cuda.empty_cache()
         # peak_mem = torch.cuda.max_memory_allocated() / 1024**3  # GB
-        avg_mem = sum(iter_mem_usage) / len(iter_mem_usage)
+        # avg_mem = sum(iter_mem_usage) / len(iter_mem_usage)
 
-        print(f"Average Memory {avg_mem} GB ")
+        # print(f"Average Memory {avg_mem} GB ")
         print(f"Epoch time took:: {(time.time()-epo_start_t):.3f}s")
     
         if epoch % cfg.eval_interval == 0:
