@@ -41,6 +41,7 @@ def train_sam(
     max_iou = 0.
     mem_bank = Store(1, cfg.mem_bank_max_len) 
     match_interval = cfg.match_interval
+    iter_mem_usage = []
     epo_start_t = time.time()
     for epoch in range(1, cfg.num_epochs + 1):
         batch_time = AverageMeter()
@@ -158,6 +159,9 @@ def train_sam(
                 loss_dice += dice_loss(pred_mask, soft_mask, num_masks)
                 batch_iou = calc_iou(pred_mask, soft_mask)
                 loss_iou += F.mse_loss(iou_prediction, batch_iou, reduction='sum') / num_masks
+            torch.cuda.synchronize()
+            curr_mem = torch.cuda.memory_allocated() / 1024**3  # GB
+            iter_mem_usage.append(curr_mem)
                 
             del soft_image_embeds, pred_masks, iou_predictions, gt_masks 
                 
@@ -197,8 +201,10 @@ def train_sam(
             # }
             # fabric.log_dict(loss_logger, num_iter * (epoch - 1) + iter)
             torch.cuda.empty_cache()
-        peak_mem = torch.cuda.max_memory_allocated() / 1024**3  # GB
-        print(f"Peak Memory {peak_mem} GB ")
+        # peak_mem = torch.cuda.max_memory_allocated() / 1024**3  # GB
+        avg_mem = sum(iter_mem_usage) / len(iter_mem_usage)
+
+        print(f"Average Memory {avg_mem} GB ")
         print(f"Epoch time took:: {(time.time()-epo_start_t):.3f}s")
     
         if epoch % cfg.eval_interval == 0:
