@@ -205,6 +205,8 @@ def train_sam(
                 fabric.save(os.path.join(cfg.out_dir, "save", "best-ckpt.pth"), state)
                 max_iou = iou
             del iou 
+        peak_mem = torch.cuda.max_memory_allocated() / 1024**3  # GB
+        print(f"Peak Memory {peak_mem} GB ")
         print(f"Epoch time took:: {(time.time()-epo_start_t):.3f}s")
     
             
