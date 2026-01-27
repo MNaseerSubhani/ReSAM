@@ -278,7 +278,7 @@ def main(cfg: Box) -> None:
         optimizer.load_state_dict(full_checkpoint["optimizer"])
     print('-'*100)
     print('\033[92mDirect test on the original SAM.\033[0m') 
-    _, _, = validate(fabric, cfg, model, val_data, name=cfg.name, epoch=0)
+    # _, _, = validate(fabric, cfg, model, val_data, name=cfg.name, epoch=0)
     print('-'*100)
     del _     
     start = time.time()
