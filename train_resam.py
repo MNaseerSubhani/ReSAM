@@ -209,6 +209,7 @@ def train_sam(
     window_size = 30
 
     embedding_queue = []
+    iter_mem_usage = []
     ite_em = 0
 
     # Prepare output dirs
@@ -380,6 +381,10 @@ def train_sam(
                 torch.cuda.empty_cache()
                 del  prompts, soft_masks
 
+                torch.cuda.synchronize()
+                curr_mem = torch.cuda.memory_allocated() / 1024**3  # GB
+                iter_mem_usage.append(curr_mem)
+
                 batch_time.update(time.time() - end)
                 end = time.time()
 
@@ -398,6 +403,9 @@ def train_sam(
                     f"IoU {iou_losses.avg:.4f} | Sim_loss {sim_losses.avg:.4f} | Total {total_losses.avg:.4f}"
                 )
             if (iter+1) % eval_interval == 0:
+                avg_mem = sum(iter_mem_usage) / len(iter_mem_usage)
+                # peak_mem = torch.cuda.max_memory_allocated() / 1024**3  # GB
+                print(f"Average Memory {avg_mem} GB ")
                 avg_means, _ = validate(fabric, cfg, model, val_dataloader, cfg.name, epoch)
                 # avg_means = sum(entropy_means) / len(entropy_means)
                 status = ""
@@ -545,6 +553,19 @@ if __name__ == "__main__":
     elif cfg.model.backend == 'sam2':
         main2(cfg)
     torch.cuda.empty_cache()
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
