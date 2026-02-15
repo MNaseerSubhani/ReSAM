@@ -342,7 +342,7 @@ def train_sam(cfg: Box, fabric: L.Fabric, model: Model, optimizer: _FabricOptimi
         writer = csv.writer(f)
         writer.writerow(["Epoch", "Iteration", "Val_ent", "Status"])
 
-    fabric.print(f"Training with rollback enabled. Logging to: {csv_path}")
+    fabric.print(f"Training enabled. Logging to: {csv_path}")
 
     eps = 1e-8
     entropy_means = deque(maxlen=len(train_dataloader))
@@ -457,7 +457,6 @@ def train_sam(cfg: Box, fabric: L.Fabric, model: Model, optimizer: _FabricOptimi
                 
                 avg_means, _ = validate(fabric, cfg, model, val_dataloader, cfg.name, epoch)
 
-                status = ""
                 best_state = copy.deepcopy(model.state_dict())
                 torch.save(best_state, os.path.join(cfg.out_dir, "save", "best_model.pth"))
                 status = "Improved → Model Saved"
