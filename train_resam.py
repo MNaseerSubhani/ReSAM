@@ -321,13 +321,11 @@ feature_queue = deque(maxlen=32)  # keep up to 512 previous object embeddings
 
 
 def train_sam(cfg: Box, fabric: L.Fabric, model: Model, optimizer: _FabricOptimizer,
-              scheduler: _FabricOptimizer, train_dataloader: DataLoader, val_dataloader: DataLoader,
-              init_iou):
+              scheduler: _FabricOptimizer, train_dataloader: DataLoader, val_dataloader: DataLoader):
 
     watcher = LossWatcher(window=50, factor=4)
     focal_loss = FocalLoss()
     dice_loss = DiceLoss()
-    best_ent = init_iou
     best_state = copy.deepcopy(model.state_dict())
     no_improve_count = 0
     max_patience = cfg.get("patience", 3)
@@ -342,7 +340,7 @@ def train_sam(cfg: Box, fabric: L.Fabric, model: Model, optimizer: _FabricOptimi
 
     with open(csv_path, "w", newline="") as f:
         writer = csv.writer(f)
-        writer.writerow(["Epoch", "Iteration", "Val_ent", "Best_ent", "Status"])
+        writer.writerow(["Epoch", "Iteration", "Val_ent", "Status"])
 
     fabric.print(f"Training with rollback enabled. Logging to: {csv_path}")
 
@@ -409,11 +407,13 @@ def train_sam(cfg: Box, fabric: L.Fabric, model: Model, optimizer: _FabricOptimi
 
                 batch_feats = [get_bbox_feature(embeddings, bbox) for bbox in bboxes]
 
-                if len(batch_feats) > 32:
+                if len(feature_queue) = 32:
                     batch_feats = F.normalize(torch.stack(batch_feats, dim=0), dim=1)
-                    loss_sim = similarity_loss(embedding_queue, embedding_queue)
+                    loss_sim = similarity_loss(feature_queue, feature_queue)
                     loss_sim = torch.tensor(0., device=batch_feats.device) if loss_sim == -1 else loss_sim
-                    embedding_queue.extend([f.detach() for f in batch_feats])
+                    feature_queue.extend([f.detach() for f in batch_feats])
+                else:
+                    loss_sim = torch.tensor(0., device=batch_feats.device)
 
                 for pred_mask, soft_mask, iou_prediction, bbox in zip(pred_masks[0], soft_masks[0], iou_predictions[0], bboxes):
                     soft_mask = (soft_mask > 0.).float()
@@ -454,32 +454,21 @@ def train_sam(cfg: Box, fabric: L.Fabric, model: Model, optimizer: _FabricOptimi
                 )
 
             if (iter + 1) % eval_interval == 0:
-                avg_mem = sum(iter_mem_usage) / len(iter_mem_usage)
-                print(f"Average Memory {avg_mem:.2f} GB")
+                
                 avg_means, _ = validate(fabric, cfg, model, val_dataloader, cfg.name, epoch)
 
                 status = ""
-                if avg_means > 0:
-                    best_ent = avg_means
-                    best_state = copy.deepcopy(model.state_dict())
-                    torch.save(best_state, os.path.join(cfg.out_dir, "save", "best_model.pth"))
-                    status = "Improved → Model Saved"
-                    no_improve_count = 0
-                else:
-                    model.load_state_dict(best_state)
-                    no_improve_count += 1
-                    status = f"Rollback ({no_improve_count})"
+                best_state = copy.deepcopy(model.state_dict())
+                torch.save(best_state, os.path.join(cfg.out_dir, "save", "best_model.pth"))
+                status = "Improved → Model Saved"
+                no_improve_count = 0
 
                 with open(csv_path, "a", newline="") as f:
                     writer = csv.writer(f)
-                    writer.writerow([epoch, iter + 1, avg_means, best_ent, status])
-
-                fabric.print(f"Validation IoU={avg_means:.4f} | Best={best_ent:.4f} | {status}")
-
-                if no_improve_count >= max_patience:
-                    fabric.print(f"Training stopped early after {no_improve_count} failed rollbacks.")
-                    return
-
+                    writer.writerow([epoch, iter + 1, avg_means, status])
+                avg_mem = sum(iter_mem_usage) / len(iter_mem_usage)
+                print(f"Average Memory {avg_mem:.2f} GB")
+                fabric.print(f"Validation IoU={avg_means:.4f}  | {status}")
 
 
             
@@ -553,7 +542,7 @@ def main(cfg: Box) -> int:
         loaded = True
         fabric.print(f"Resumed from explicit checkpoint: {cfg.model.ckpt}")
    
-    init_iou = 0
+
     # print('-'*100)
     # print('\033[92mDirect test on the original SAM.\033[0m') 
     # init_iou, _, = validate(fabric, cfg, model, val_data, name=cfg.name, epoch=0)
@@ -563,7 +552,7 @@ def main(cfg: Box) -> int:
 
 
 
-    train_sam(cfg, fabric, model, optimizer, scheduler, train_data, val_data, init_iou)
+    train_sam(cfg, fabric, model, optimizer, scheduler, train_data, val_data)
 
     del model, train_data, val_data
 
