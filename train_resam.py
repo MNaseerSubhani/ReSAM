@@ -26,7 +26,7 @@ from box import Box
 from datasets import call_load_dataset
 from utils.model import Model
 from utils.losses import DiceLoss, FocalLoss, Matching_Loss, cosine_similarity
-from utils.eval_utils import AverageMeter, validate, get_prompts, calc_iou, validate_per_object
+from utils.eval_utils import AverageMeter, validate, get_prompts, calc_iou, validate_iou
 from utils.tools import copy_model, create_csv, reduce_instances
 from utils.utils import *
 
@@ -552,24 +552,11 @@ def main(cfg: Box) -> int:
     # del _     
 
 
-    avg_iou, avg_f1, object_sizes, object_ious = validate_per_object(
-        fabric=fabric,
-        cfg=cfg,
-        model=model,
-        val_dataloader=val_data,
-        name=cfg.name,
-        epoch=0
-    )
+    overall_iou, overall_f1, size_iou = validate_iou(fabric, cfg, model, val_dataloader, name="val", epoch=1)
 
-    # Print overall summary
-    print("\n===== Validation Summary =====")
-    print(f"Average IoU over all objects: {avg_iou:.4f}")
-    print(f"Average F1 score over all objects: {avg_f1:.4f}")
-
-    # Optionally, print all object IoUs with size
-    print("\nObject-wise IoUs and sizes:")
-    for idx, (iou, size) in enumerate(zip(object_ious, object_sizes)):
-        print(f"Object {idx+1}: Size ratio={size:.4f}, IoU={iou:.4f}")
+    print(f"Overall IoU: {overall_iou:.4f}, F1: {overall_f1:.4f}")
+    for size, iou in size_iou.items():
+        print(f"{size.capitalize()} objects IoU: {iou:.4f}")
 
 
 
