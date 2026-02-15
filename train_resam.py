@@ -473,7 +473,7 @@ def train_sam(cfg: Box, fabric: L.Fabric, model: Model, optimizer: _FabricOptimi
                 #     writer.writerow([epoch, iter + 1, avg_means, status])
                 avg_mem = sum(iter_mem_usage) / len(iter_mem_usage)
                 print(f"Average Memory {avg_mem:.2f} GB")
-                fabric.print(f"Validation IoU={avg_means:.4f}  | {status}")
+                fabric.print(f"Validation IoU={overall_iou:.4f}  | {status}")
 
 
             
