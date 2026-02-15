@@ -323,23 +323,23 @@ def train_sam(
 
 
 
-                for bbox in bboxes:
-                    feat = get_bbox_feature(embeddings, bbox)
-                    batch_feats.append(feat)
+                # for bbox in bboxes:
+                #     feat = get_bbox_feature(embeddings, bbox)
+                #     batch_feats.append(feat)
 
-                if len(batch_feats) > 0:
+                # if len(batch_feats) > 30:
                  
-                    batch_feats = F.normalize(torch.stack(batch_feats, dim=0), dim=1)
-                    loss_sim = similarity_loss(feature_queue , feature_queue)
+                #     batch_feats = F.normalize(torch.stack(batch_feats, dim=0), dim=1)
+                #     loss_sim = similarity_loss(feature_queue , feature_queue)
 
-                    if loss_sim == -1:
-                        loss_sim = torch.tensor(0., device=batch_feats.device)
+                #     if loss_sim == -1:
+                #         loss_sim = torch.tensor(0., device=batch_feats.device)
               
-                    # add new features to queue (detach to avoid backprop)
-                    for f in batch_feats:
-                        feature_queue.append(f.detach())
-                else:
-                    loss_sim = torch.tensor(0., device=embeddings.device)
+                #     # add new features to queue (detach to avoid backprop)
+                #     for f in batch_feats:
+                #         feature_queue.append(f.detach())
+                # else:
+                #     loss_sim = torch.tensor(0., device=embeddings.device)
 
         
 
@@ -370,7 +370,7 @@ def train_sam(
                 loss_sim  = loss_sim
              
 
-                loss_total =  (20 * loss_focal +  loss_dice  + loss_iou  +0.1*loss_sim   )#      )#+ 
+                loss_total =  (20 * loss_focal +  loss_dice  + loss_iou     )    #+0.1*loss_sim
                 if watcher.is_outlier(loss_total):
                     continue
                 fabric.backward(loss_total)
