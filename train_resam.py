@@ -410,10 +410,10 @@ def train_sam(cfg: Box, fabric: L.Fabric, model: Model, optimizer: _FabricOptimi
                 if len(feature_queue) == 32:
                     batch_feats = F.normalize(torch.stack(batch_feats, dim=0), dim=1)
                     loss_sim = similarity_loss(feature_queue, feature_queue)
-                    loss_sim = torch.tensor(0., device=fabric.device) if loss_sim == -1 else loss_sim
+                    loss_sim = torch.tensor(0., device=batch_feats.device) if loss_sim == -1 else loss_sim
                     feature_queue.extend([f.detach() for f in batch_feats])
                 else:
-                    loss_sim = torch.tensor(0., device=batch_feats.device)
+                    loss_sim = torch.tensor(0., device=fabric.device)
 
                 for pred_mask, soft_mask, iou_prediction, bbox in zip(pred_masks[0], soft_masks[0], iou_predictions[0], bboxes):
                     soft_mask = (soft_mask > 0.).float()
