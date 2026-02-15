@@ -413,6 +413,8 @@ def train_sam(cfg: Box, fabric: L.Fabric, model: Model, optimizer: _FabricOptimi
                     loss_sim = torch.tensor(0., device=batch_feats.device) if loss_sim == -1 else loss_sim
                     feature_queue.extend([f.detach() for f in batch_feats])
                 else:
+                    batch_feats = F.normalize(torch.stack(batch_feats, dim=0), dim=1)
+                    feature_queue.extend([f.detach() for f in batch_feats])
                     
                     loss_sim = torch.tensor(0., device=fabric.device)
 
