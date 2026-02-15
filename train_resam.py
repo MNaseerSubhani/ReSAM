@@ -270,26 +270,70 @@ def train_sam(
                 overlap_map = (overlap_count > 1).float()
                 invert_overlap_map = 1.0 - overlap_map
 
-                
+                # bboxes = []
+                # point_list = []
+                # point_labels_list = []
+                # for i,  (pred, ent) in enumerate( zip(pred_binary, entropy_maps)):
+                #     point_coords = prompts[0][0][i][:].unsqueeze(0)
+                #     point_coords_lab = prompts[0][1][i][:].unsqueeze(0)
+
+                #     pred_w_overlap = ((pred[0]*invert_overlap_map[0]  ) )#    * ((1 - 0.1 * ent[0]))
+                #     ys, xs = torch.where(pred_w_overlap > 0.5)
+                #     if len(xs) > 0 and len(ys) > 0:
+                #         x_min, x_max = xs.min().item(), xs.max().item()
+                #         y_min, y_max = ys.min().item(), ys.max().item()
+
+                #         bboxes.append(torch.tensor([x_min, y_min , x_max, y_max], dtype=torch.float32))
+
+                #         point_list.append(point_coords)
+                #         point_labels_list.append(point_coords_lab)
 
 
-                bboxes = []
-                point_list = []
-                point_labels_list = []
-                for i,  (pred, ent) in enumerate( zip(pred_binary, entropy_maps)):
-                    point_coords = prompts[0][0][i][:].unsqueeze(0)
-                    point_coords_lab = prompts[0][1][i][:].unsqueeze(0)
+                # pred_binary: (N, 1, H, W)
+                # entropy_maps: (N, 1, H, W)
+                # invert_overlap_map: (1, H, W)
+                # prompts = [(points, labels)]
 
-                    pred_w_overlap = ((pred[0]*invert_overlap_map[0]  ) )#    * ((1 - 0.1 * ent[0]))
-                    ys, xs = torch.where(pred_w_overlap > 0.5)
-                    if len(xs) > 0 and len(ys) > 0:
-                        x_min, x_max = xs.min().item(), xs.max().item()
-                        y_min, y_max = ys.min().item(), ys.max().item()
+                points = prompts[0][0]           # (N, 2)
+                point_labels = prompts[0][1]     # (N,)
 
-                        bboxes.append(torch.tensor([x_min, y_min , x_max, y_max], dtype=torch.float32))
+                # --- 1. Apply overlap mask to all predictions at once ---
+                pred_w_overlap = pred_binary[:, 0] * invert_overlap_map[0]      # (N, H, W)
 
-                        point_list.append(point_coords)
-                        point_labels_list.append(point_coords_lab)
+                # --- 2. Threshold ---
+                mask = pred_w_overlap > 0.5                                     # (N, H, W)
+
+                # --- 3. Find bounding boxes in vectorized form ---
+                # Flatten spatial dims
+                flat = mask.view(mask.size(0), -1)                              # (N, H*W)
+
+                # Check which masks have any positive pixels
+                valid = flat.any(dim=1)                                         # (N,)
+
+                # Pre-allocate bbox tensor
+                bboxes = torch.zeros((valid.sum(), 4), device=mask.device, dtype=torch.float32)
+
+                # Extract indices (y, x)
+                ys, xs = torch.where(mask)                                      # All indices for all N
+
+                # Group indices by mask id
+                # mask indices: for each valid instance, find its ys/xs
+                instance_ids = torch.where(valid)[0]                            # valid indices
+
+                for idx, inst_id in enumerate(instance_ids):
+                    sel = (ys == inst_id)
+                    ys_sel = ys[sel]
+                    xs_sel = xs[sel]
+
+                    y_min, y_max = ys_sel.min(), ys_sel.max()
+                    x_min, x_max = xs_sel.min(), xs_sel.max()
+
+                    bboxes[idx] = torch.tensor([x_min, y_min, x_max, y_max], device=mask.device)
+
+                # --- 4. Filter points and labels ---
+                point_list = points[valid]                                      # (M, 2)
+                point_labels_list = point_labels[valid]                         # (M,)
+
                     
                 if len(bboxes) == 0:
                     continue  # skip if no valid region
@@ -323,23 +367,23 @@ def train_sam(
 
 
 
-                # for bbox in bboxes:
-                #     feat = get_bbox_feature(embeddings, bbox)
-                #     batch_feats.append(feat)
+                for bbox in bboxes:
+                    feat = get_bbox_feature(embeddings, bbox)
+                    batch_feats.append(feat)
 
-                # if len(batch_feats) > 30:
+                if len(batch_feats) > 30:
                  
-                #     batch_feats = F.normalize(torch.stack(batch_feats, dim=0), dim=1)
-                #     loss_sim = similarity_loss(feature_queue , feature_queue)
+                    batch_feats = F.normalize(torch.stack(batch_feats, dim=0), dim=1)
+                    loss_sim = similarity_loss(feature_queue , feature_queue)
 
-                #     if loss_sim == -1:
-                #         loss_sim = torch.tensor(0., device=batch_feats.device)
+                    if loss_sim == -1:
+                        loss_sim = torch.tensor(0., device=batch_feats.device)
               
-                #     # add new features to queue (detach to avoid backprop)
-                #     for f in batch_feats:
-                #         feature_queue.append(f.detach())
-                # else:
-                #     loss_sim = torch.tensor(0., device=embeddings.device)
+                    # add new features to queue (detach to avoid backprop)
+                    for f in batch_feats:
+                        feature_queue.append(f.detach())
+                else:
+                    loss_sim = torch.tensor(0., device=embeddings.device)
 
         
 
@@ -363,14 +407,13 @@ def train_sam(
 
                 del  pred_masks, iou_predictions 
                 del pred_stack, overlap_map, invert_overlap_map
-                torch.cuda.empty_cache()
                 # loss_dist = loss_dist / num_masks
                 loss_dice = loss_dice / num_masks
                 loss_focal = loss_focal / num_masks
                 loss_sim  = loss_sim
              
 
-                loss_total =  (20 * loss_focal +  loss_dice  + loss_iou     )    #+0.1*loss_sim
+                loss_total =  (20 * loss_focal +  loss_dice  + loss_iou +0.1*loss_sim    )    #
                 if watcher.is_outlier(loss_total):
                     continue
                 fabric.backward(loss_total)
