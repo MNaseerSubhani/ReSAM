@@ -26,7 +26,7 @@ from box import Box
 from datasets import call_load_dataset
 from utils.model import Model
 from utils.losses import DiceLoss, FocalLoss, Matching_Loss, cosine_similarity
-from utils.eval_utils import AverageMeter, validate, get_prompts, calc_iou
+from utils.eval_utils import AverageMeter, validate, get_prompts, calc_iou, validate_per_object_verbose
 from utils.tools import copy_model, create_csv, reduce_instances
 from utils.utils import *
 
