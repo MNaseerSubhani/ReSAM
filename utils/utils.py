@@ -9,7 +9,6 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from .finch import FINCH
 from .sample_utils import get_point_prompts
 
 class Store:
@@ -185,53 +184,6 @@ def generate_predict_feats(cfg, embed, pseudo_label, gts):
     predict_feats = torch.stack(pos_pts, dim=0)
 
     return predict_feats
-
-
-def offline_prototypes_generation(cfg, model, loader):
-    model.eval()
-    pts = []
-    max_iters = 128 
-    num_points = cfg.num_points
-
-    with torch.no_grad():
-        for i, batch in enumerate(tqdm(loader, desc='Generating target prototypes', ncols=100)):
-            if i >= max_iters: 
-                break
-            imgs, boxes, masks, _ = batch
-            prompts = get_prompts(cfg, boxes, masks)
-
-            embeds, masks, _, _ = model(imgs, prompts) 
-            del _
-
-            if isinstance(embeds, dict):
-                embeds = embeds['vision_features'] 
-
-            for embed, prompt, mask in zip(embeds, prompts, masks):
-                num_insts = len(mask)
-                embed = embed.permute(1, 2, 0)  # [H, W, C]
-                coords = []
-
-                points, labels = prompt
-                for point_grp, label_grp in zip(points, labels):
-                    for point, label in zip(point_grp, label_grp): 
-                        if label.item() == 1:  
-                            coords.append(point.tolist())
-
-                # 16 is the stride of SAM
-                coords = [[int(pt / 16) for pt in pair] for pair in coords]
-                for index in range(0, num_insts*num_points, num_points):
-                    x, y = coords[index]
-                    pt = embed[x,y]
-                    pts.append(pt)
-
-    fin = FINCH(verbose=True)
-    pts = torch.stack(pts).cpu().numpy()
-    res = fin.fit(pts)
-
-    last_key = list(res.partitions.keys())[-1]
-    pt_stats = {'target_pts': res.partitions[last_key]['cluster_centers']}
-    return pt_stats
-
 
 
 
