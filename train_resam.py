@@ -288,35 +288,44 @@ def train_sam(
                 #         point_list.append(point_coords)
                 #         point_labels_list.append(point_coords_lab)
 
+                
+
+
                 # pred_binary: (N, 1, H, W)
                 # invert_overlap_map: (1, H, W)
+                # prompts = [(points, point_labels)]
 
                 points = prompts[0][0]           # (N, 2)
                 point_labels = prompts[0][1]     # (N,)
 
-                # 1. Remove channel: (N, H, W)
+                # 1. Remove channel → (N, H, W)
                 pred_w_overlap = pred_binary[:, 0] * invert_overlap_map[0]
 
                 # 2. Threshold mask
                 mask = pred_w_overlap > 0.5      # (N, H, W)
 
-                # 3. Flatten to detect non-empty masks
-                flat = mask.view(mask.size(0), -1)  
-
-                valid = flat.any(dim=1)          # (N,) boolean
+                # 3. Flatten and detect valid instances
+                flat = mask.view(mask.size(0), -1)
+                valid = flat.any(dim=1)          # (N,)
                 valid_ids = torch.where(valid)[0]  # (M,)
 
-                # 4. Get coordinates for all active pixels
-                batch_ids, ys, xs = torch.where(mask)   # (K,), (K,), (K,)
+                if len(valid_ids) == 0:
+                    continue
 
-                # 5. Pre-allocate bboxes
+                # 4. Gather pixel coordinates for all active masks
+                batch_ids, ys, xs = torch.where(mask)
+
+                # 5. Prepare bbox container
                 bboxes = torch.zeros((valid_ids.size(0), 4),
                                     device=mask.device,
                                     dtype=torch.float32)
 
-                # 6. Compute bbox per valid instance (minimal required loop)
+                # 6. Compute bbox per valid instance  (minimal loop)
                 for j, inst_id in enumerate(valid_ids):
                     sel = (batch_ids == inst_id)
+                    if sel.sum() == 0:
+                        continue
+
                     y_sel = ys[sel]
                     x_sel = xs[sel]
 
@@ -324,11 +333,18 @@ def train_sam(
                     x_min, x_max = x_sel.min(), x_sel.max()
 
                     bboxes[j] = torch.stack([x_min, y_min, x_max, y_max])
-                    
-                # 7. Return filtered points
-                point_list = points[valid]          # (M, 2)
+
+                # 7. Filter prompts for valid instances
+                point_list = points[valid]               # (M, 2)
                 point_labels_list = point_labels[valid]  # (M,)
 
+                # :::::::::::::::::::::::::::::::::::::::::::::::::::::
+                #  THIS IS THE FIX — no cat(), no squeeze()
+                # :::::::::::::::::::::::::::::::::::::::::::::::::::::
+                point_ = point_list
+                point_labels_ = point_labels_list
+
+                new_prompts = [(point_, point_labels_)]
 
 
 
