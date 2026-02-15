@@ -170,9 +170,9 @@ def validate_iou(fabric: L.Fabric, cfg: Box, model: Model, val_dataloader: DataL
                 
                 # Determine object size based on GT mask area
                 area = gt_mask.sum().item()
-                if area < 32*32:   # small
+                if area < 96*96:   # small
                     size = "small"
-                elif area < 96*96: # medium
+                elif area < 128*128: # medium
                     size = "medium"
                 else:              # large
                     size = "large"

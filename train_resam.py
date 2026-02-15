@@ -458,16 +458,19 @@ def train_sam(cfg: Box, fabric: L.Fabric, model: Model, optimizer: _FabricOptimi
 
             if (iter + 1) % eval_interval == 0:
                 
-                avg_means, _ = validate(fabric, cfg, model, val_dataloader, cfg.name, epoch)
+                # avg_means, _ = validate(fabric, cfg, model, val_dataloader, cfg.name, epoch)
+
+                overall_iou, overall_f1, size_iou = validate_iou(fabric, cfg, model, val_dataloader,  cfg.name, epoch=epoch)
+
 
                 best_state = copy.deepcopy(model.state_dict())
                 torch.save(best_state, os.path.join(cfg.out_dir, "save", "best_model.pth"))
                 status = "Model Saved"
-                no_improve_count = 0
+              
 
-                with open(csv_path, "a", newline="") as f:
-                    writer = csv.writer(f)
-                    writer.writerow([epoch, iter + 1, avg_means, status])
+                # with open(csv_path, "a", newline="") as f:
+                #     writer = csv.writer(f)
+                #     writer.writerow([epoch, iter + 1, avg_means, status])
                 avg_mem = sum(iter_mem_usage) / len(iter_mem_usage)
                 print(f"Average Memory {avg_mem:.2f} GB")
                 fabric.print(f"Validation IoU={avg_means:.4f}  | {status}")
@@ -552,14 +555,9 @@ def main(cfg: Box) -> int:
     # del _     
 
 
-    overall_iou, overall_f1, size_iou = validate_iou(fabric, cfg, model, val_data, name="val", epoch=1)
+    # overall_iou, overall_f1, size_iou = validate_iou(fabric, cfg, model, val_data, name="val", epoch=1)
 
-    print(f"Overall IoU: {overall_iou:.4f}, F1: {overall_f1:.4f}")
-    for size, iou in size_iou.items():
-        print(f"{size.capitalize()} objects IoU: {iou:.4f}")
-
-
-
+    
     train_sam(cfg, fabric, model, optimizer, scheduler, train_data, val_data)
 
     del model, train_data, val_data
