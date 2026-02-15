@@ -26,7 +26,7 @@ from box import Box
 from datasets import call_load_dataset
 from utils.model import Model
 from utils.losses import DiceLoss, FocalLoss, Matching_Loss, cosine_similarity
-from utils.eval_utils import AverageMeter, validate, get_prompts, calc_iou, validate_per_object_verbose
+from utils.eval_utils import AverageMeter, validate, get_prompts, calc_iou, validate_per_object
 from utils.tools import copy_model, create_csv, reduce_instances
 from utils.utils import *
 
@@ -552,7 +552,7 @@ def main(cfg: Box) -> int:
     # del _     
 
 
-    avg_iou, avg_f1, object_sizes, object_ious = validate_per_object_verbose(
+    avg_iou, avg_f1, object_sizes, object_ious = validate_per_object(
         fabric=fabric,
         cfg=cfg,
         model=model,
