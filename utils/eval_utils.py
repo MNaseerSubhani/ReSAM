@@ -62,21 +62,6 @@ def calc_iou_instance(pred_masks: torch.Tensor, gt_masks: torch.Tensor):
     return iou_list
 
 
-#intersection
-# mask1:            mask2:           intersection:
-# [[1, 1, 0, 0],   [[1, 0, 0, 0],   [[1, 0, 0, 0],
-#  [1, 0, 0, 0],    [1, 1, 0, 0],    [1, 0, 0, 0],
-#  [1, 1, 0, 0],    [0, 1, 0, 0],    [0, 1, 0, 0],
-#  [0, 0, 0, 0]]    [0, 0, 0, 0]]    [0, 0, 0, 0]]
-
-#union
-# mask1:            mask2:           union:
-# [[1, 1, 0, 0],   [[1, 0, 0, 0],   [[1, 1, 0, 0],
-#  [1, 0, 0, 0],    [1, 1, 0, 0],    [1, 1, 0, 0],
-#  [1, 1, 0, 0],    [0, 1, 0, 0],    [1, 1, 0, 0],
-#  [0, 0, 0, 0]]    [0, 0, 0, 0]]    [0, 0, 0, 0]]
-
-
 def calculate_iou(mask1, mask2):
 
     intersection = torch.logical_and(mask1, mask2)

@@ -186,7 +186,108 @@ def generate_predict_feats(cfg, embed, pseudo_label, gts):
     return predict_feats
 
 
+def similarity_loss(features, queue, tau=0.07, sim_threshold=0.5):
+    """
+    features: [B, D] current batch embeddings (normalized)
+    queue: deque of [D] past embeddings (detached)
+    tau: temperature for softmax
+    sim_threshold: cosine similarity threshold to consider "similar"
+    """
+    if len(queue) == 0:
+        return -1
 
+    # Stack past features from queue
+    past_feats = torch.stack(list(queue), dim=0)  # [Q, D]
+    features = torch.stack(list(features), dim=0)  # [B, D]
+
+    # Normalize embeddings
+    features = F.normalize(features, dim=1)
+    past_feats = F.normalize(past_feats, dim=1)
+
+    # Compute cosine similarities
+    cos_sim = torch.mm(features, past_feats.t())  # [B, Q]
+
+    # Apply threshold: set values below threshold to 0
+    mask = (cos_sim >= sim_threshold).float()
+    cos_sim_masked = cos_sim * mask  # [B, Q], below threshold becomes 0
+
+    # Scale by temperature
+    logits = cos_sim_masked / tau
+
+    # Softmax over queue dimension
+    probs = F.softmax(logits, dim=1)
+
+    # Weighted alignment loss
+    loss = ((1 - cos_sim_masked) * probs).sum(dim=1).mean()
+
+    return loss
+
+
+def get_bbox_feature(embedding_map, bbox, stride=16, pooling='avg'):
+    """
+    Extract a feature vector from an embedding map given a bounding box.
+    
+    Args:
+        embedding_map (torch.Tensor): Shape (C, H_feat, W_feat) or (B, C, H_feat, W_feat)
+        bbox (list or torch.Tensor): [x1, y1, x2, y2] in original image coordinates
+        stride (int): Downscaling factor between image and feature map
+        pooling (str): 'avg' or 'max' pooling inside the bbox region
+        
+    Returns:
+        torch.Tensor: Feature vector of shape (C,)
+    """
+    # If batch dimension exists, assume batch size 1
+    if embedding_map.dim() == 4:
+        embedding_map = embedding_map[0]
+
+    C, H_feat, W_feat = embedding_map.shape
+    x1, y1, x2, y2 = bbox
+
+    # Map bbox to feature map coordinates
+    fx1 = max(int(x1 / stride), 0)
+    fy1 = max(int(y1 / stride), 0)
+    fx2 = min(int((x2 + stride - 1) / stride), W_feat)  # ceil division
+    fy2 = min(int((y2 + stride - 1) / stride), H_feat)
+
+    # Crop the feature map to bbox region
+    region = embedding_map[:, fy1:fy2, fx1:fx2]
+
+    if region.numel() == 0:
+        # fallback to global feature if bbox is too small
+        region = embedding_map
+
+    # Pool to get a single feature vector
+    if pooling == 'avg':
+        feature_vec = region.mean(dim=(1,2))
+    elif pooling == 'max':
+        feature_vec = region.amax(dim=(1,2))
+    else:
+        raise ValueError("pooling must be 'avg' or 'max'")
+
+    return feature_vec
+
+
+
+def create_entropy_mask(entropy_maps, threshold=0.5, device='cuda'):
+    """
+    Create a mask to reduce learning from high entropy regions.
+    
+    Args:
+        entropy_maps: List of entropy maps for each instance
+        threshold: Entropy threshold above which to mask out regions
+        device: Device to place the mask on
+    
+    Returns:
+        List of entropy masks (0 for high entropy, 1 for low entropy)
+    """
+    entropy_masks = []
+    
+    for entropy_map in entropy_maps:
+        # Create binary mask: 1 for low entropy, 0 for high entropy
+        entropy_mask = (entropy_map < threshold).float()
+        entropy_masks.append(entropy_mask)
+    
+    return entropy_masks
 
 
 from PIL import Image
