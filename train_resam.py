@@ -270,94 +270,23 @@ def train_sam(
                 overlap_map = (overlap_count > 1).float()
                 invert_overlap_map = 1.0 - overlap_map
 
-                # bboxes = []
-                # point_list = []
-                # point_labels_list = []
-                # for i,  (pred, ent) in enumerate( zip(pred_binary, entropy_maps)):
-                #     point_coords = prompts[0][0][i][:].unsqueeze(0)
-                #     point_coords_lab = prompts[0][1][i][:].unsqueeze(0)
+                bboxes = []
+                point_list = []
+                point_labels_list = []
+                for i,  (pred, ent) in enumerate( zip(pred_binary, entropy_maps)):
+                    point_coords = prompts[0][0][i][:].unsqueeze(0)
+                    point_coords_lab = prompts[0][1][i][:].unsqueeze(0)
 
-                #     pred_w_overlap = ((pred[0]*invert_overlap_map[0]  ) )#    * ((1 - 0.1 * ent[0]))
-                #     ys, xs = torch.where(pred_w_overlap > 0.5)
-                #     if len(xs) > 0 and len(ys) > 0:
-                #         x_min, x_max = xs.min().item(), xs.max().item()
-                #         y_min, y_max = ys.min().item(), ys.max().item()
+                    pred_w_overlap = ((pred[0]*invert_overlap_map[0]  ) )#    * ((1 - 0.1 * ent[0]))
+                    ys, xs = torch.where(pred_w_overlap > 0.5)
+                    if len(xs) > 0 and len(ys) > 0:
+                        x_min, x_max = xs.min().item(), xs.max().item()
+                        y_min, y_max = ys.min().item(), ys.max().item()
 
-                #         bboxes.append(torch.tensor([x_min, y_min , x_max, y_max], dtype=torch.float32))
-
-                #         point_list.append(point_coords)
-                #         point_labels_list.append(point_coords_lab)
-
-                
-
-
-                # pred_binary: (N, 1, H, W)
-                # invert_overlap_map: (1, H, W)
-                # prompts = [(points, point_labels)]
-
-                points = prompts[0][0]           # (N, 2)
-                point_labels = prompts[0][1]     # (N,)
-
-                # 1. Remove channel → (N, H, W)
-                pred_w_overlap = pred_binary[:, 0] * invert_overlap_map[0]
-
-                # 2. Threshold mask
-                mask = pred_w_overlap > 0.5      # (N, H, W)
-
-                # 3. Flatten and detect valid instances
-                flat = mask.view(mask.size(0), -1)
-                valid = flat.any(dim=1)          # (N,)
-                valid_ids = torch.where(valid)[0]  # (M,)
-
-                if len(valid_ids) == 0:
-                    continue
-
-                # 4. Gather pixel coordinates for all active masks
-                batch_ids, ys, xs = torch.where(mask)
-
-                # 5. Prepare bbox container
-                bboxes = torch.zeros((valid_ids.size(0), 4),
-                                    device=mask.device,
-                                    dtype=torch.float32)
-
-                # 6. Compute bbox per valid instance  (minimal loop)
-                for j, inst_id in enumerate(valid_ids):
-                    sel = (batch_ids == inst_id)
-                    if sel.sum() == 0:
-                        continue
-
-                    y_sel = ys[sel]
-                    x_sel = xs[sel]
-
-                    y_min, y_max = y_sel.min(), y_sel.max()
-                    x_min, x_max = x_sel.min(), x_sel.max()
-
-                    bboxes[j] = torch.stack([x_min, y_min, x_max, y_max])
-
-                # 7. Filter prompts for valid instances
-                point_list = points[valid]               # (M, 2)
-                point_labels_list = point_labels[valid]  # (M,)
-
-                # :::::::::::::::::::::::::::::::::::::::::::::::::::::
-                #  THIS IS THE FIX — no cat(), no squeeze()
-                # :::::::::::::::::::::::::::::::::::::::::::::::::::::
-                point_ = point_list
-                point_labels_ = point_labels_list
-
-                new_prompts = [(point_, point_labels_)]
-
-
-
-
-
-
-                    
+                        bboxes.append(torch.tensor([x_min, y_min , x_max, y_max], dtype=torch.float32))
+          
                 if len(bboxes) == 0:
                     continue  # skip if no valid region
-
-                point_ = torch.cat(point_list).squeeze(1)
-                point_labels_ = torch.cat(point_labels_list)
-                new_prompts = [(point_, point_labels_)]
 
                 bboxes = torch.stack(bboxes)
 
