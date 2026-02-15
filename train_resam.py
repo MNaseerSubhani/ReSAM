@@ -555,7 +555,7 @@ def main(cfg: Box) -> int:
     # del _     
 
 
-    # overall_iou, overall_f1, size_iou = validate_iou(fabric, cfg, model, val_data, name="val", epoch=1)
+    overall_iou, overall_f1, size_iou = validate_iou(fabric, cfg, model, val_data, name="val", epoch=0)
 
     
     train_sam(cfg, fabric, model, optimizer, scheduler, train_data, val_data)
