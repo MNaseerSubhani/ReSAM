@@ -288,51 +288,52 @@ def train_sam(
                 #         point_list.append(point_coords)
                 #         point_labels_list.append(point_coords_lab)
 
-
                 # pred_binary: (N, 1, H, W)
-                # entropy_maps: (N, 1, H, W)
                 # invert_overlap_map: (1, H, W)
-                # prompts = [(points, labels)]
 
                 points = prompts[0][0]           # (N, 2)
                 point_labels = prompts[0][1]     # (N,)
 
-                # --- 1. Apply overlap mask to all predictions at once ---
-                pred_w_overlap = pred_binary[:, 0] * invert_overlap_map[0]      # (N, H, W)
+                # 1. Remove channel: (N, H, W)
+                pred_w_overlap = pred_binary[:, 0] * invert_overlap_map[0]
 
-                # --- 2. Threshold ---
-                mask = pred_w_overlap > 0.5                                     # (N, H, W)
+                # 2. Threshold mask
+                mask = pred_w_overlap > 0.5      # (N, H, W)
 
-                # --- 3. Find bounding boxes in vectorized form ---
-                # Flatten spatial dims
-                flat = mask.view(mask.size(0), -1)                              # (N, H*W)
+                # 3. Flatten to detect non-empty masks
+                flat = mask.view(mask.size(0), -1)  
 
-                # Check which masks have any positive pixels
-                valid = flat.any(dim=1)                                         # (N,)
+                valid = flat.any(dim=1)          # (N,) boolean
+                valid_ids = torch.where(valid)[0]  # (M,)
 
-                # Pre-allocate bbox tensor
-                bboxes = torch.zeros((valid.sum(), 4), device=mask.device, dtype=torch.float32)
+                # 4. Get coordinates for all active pixels
+                batch_ids, ys, xs = torch.where(mask)   # (K,), (K,), (K,)
 
-                # Extract indices (y, x)
-                ys, xs = torch.where(mask)                                      # All indices for all N
+                # 5. Pre-allocate bboxes
+                bboxes = torch.zeros((valid_ids.size(0), 4),
+                                    device=mask.device,
+                                    dtype=torch.float32)
 
-                # Group indices by mask id
-                # mask indices: for each valid instance, find its ys/xs
-                instance_ids = torch.where(valid)[0]                            # valid indices
+                # 6. Compute bbox per valid instance (minimal required loop)
+                for j, inst_id in enumerate(valid_ids):
+                    sel = (batch_ids == inst_id)
+                    y_sel = ys[sel]
+                    x_sel = xs[sel]
 
-                for idx, inst_id in enumerate(instance_ids):
-                    sel = (ys == inst_id)
-                    ys_sel = ys[sel]
-                    xs_sel = xs[sel]
+                    y_min, y_max = y_sel.min(), y_sel.max()
+                    x_min, x_max = x_sel.min(), x_sel.max()
 
-                    y_min, y_max = ys_sel.min(), ys_sel.max()
-                    x_min, x_max = xs_sel.min(), xs_sel.max()
+                    bboxes[j] = torch.stack([x_min, y_min, x_max, y_max])
+                    
+                # 7. Return filtered points
+                point_list = points[valid]          # (M, 2)
+                point_labels_list = point_labels[valid]  # (M,)
 
-                    bboxes[idx] = torch.tensor([x_min, y_min, x_max, y_max], device=mask.device)
 
-                # --- 4. Filter points and labels ---
-                point_list = points[valid]                                      # (M, 2)
-                point_labels_list = point_labels[valid]                         # (M,)
+
+
+
+
 
                     
                 if len(bboxes) == 0:
