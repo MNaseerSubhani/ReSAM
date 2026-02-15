@@ -552,7 +552,7 @@ def main(cfg: Box) -> int:
     # del _     
 
 
-    overall_iou, overall_f1, size_iou = validate_iou(fabric, cfg, model, val_dataloader, name="val", epoch=1)
+    overall_iou, overall_f1, size_iou = validate_iou(fabric, cfg, model, val_data, name="val", epoch=1)
 
     print(f"Overall IoU: {overall_iou:.4f}, F1: {overall_f1:.4f}")
     for size, iou in size_iou.items():
