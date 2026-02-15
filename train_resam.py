@@ -408,7 +408,6 @@ def train_sam(cfg: Box, fabric: L.Fabric, model: Model, optimizer: _FabricOptimi
                 batch_feats = [get_bbox_feature(embeddings, bbox) for bbox in bboxes]
                 
                 if len(feature_queue) == 32:
-                    print(len(feature_queue))
                     batch_feats = F.normalize(torch.stack(batch_feats, dim=0), dim=1)
                     loss_sim = similarity_loss(feature_queue, feature_queue)
                     loss_sim = torch.tensor(0., device=batch_feats.device) if loss_sim == -1 else loss_sim
