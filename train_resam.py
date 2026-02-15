@@ -462,7 +462,7 @@ def train_sam(cfg: Box, fabric: L.Fabric, model: Model, optimizer: _FabricOptimi
 
                 best_state = copy.deepcopy(model.state_dict())
                 torch.save(best_state, os.path.join(cfg.out_dir, "save", "best_model.pth"))
-                status = "Improved → Model Saved"
+                status = "Model Saved"
                 no_improve_count = 0
 
                 with open(csv_path, "a", newline="") as f:
@@ -551,6 +551,25 @@ def main(cfg: Box) -> int:
     # print('-'*100)
     # del _     
 
+
+    avg_iou, avg_f1, object_sizes, object_ious = validate_per_object_verbose(
+        fabric=fabric,
+        cfg=cfg,
+        model=model,
+        val_dataloader=val_data,
+        name=cfg.name,
+        epoch=0
+    )
+
+    # Print overall summary
+    print("\n===== Validation Summary =====")
+    print(f"Average IoU over all objects: {avg_iou:.4f}")
+    print(f"Average F1 score over all objects: {avg_f1:.4f}")
+
+    # Optionally, print all object IoUs with size
+    print("\nObject-wise IoUs and sizes:")
+    for idx, (iou, size) in enumerate(zip(object_ious, object_sizes)):
+        print(f"Object {idx+1}: Size ratio={size:.4f}, IoU={iou:.4f}")
 
 
 
