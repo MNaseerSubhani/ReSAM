@@ -582,8 +582,7 @@ if __name__ == "__main__":
 
     if cfg.model.backend == 'sam':
         main(cfg)
-    elif cfg.model.backend == 'sam2':
-        main2(cfg)
+
     torch.cuda.empty_cache()
 
 
