@@ -460,7 +460,6 @@ def train_sam(cfg: Box, fabric: L.Fabric, model: Model, optimizer: _FabricOptimi
                 
                 avg_means, _ = validate(fabric, cfg, model, val_dataloader, cfg.name, epoch)
 
-
                 best_state = copy.deepcopy(model.state_dict())
                 torch.save(best_state, os.path.join(cfg.out_dir, "save", "best_model.pth"))
                 status = "Model Saved"
