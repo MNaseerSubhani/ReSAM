@@ -346,7 +346,7 @@ def train_sam(cfg: Box, fabric: L.Fabric, model: Model, optimizer: _FabricOptimi
 
     eps = 1e-8
     # entropy_means = deque(maxlen=len(train_dataloader))
-    step_size = cfg.step_size
+    step_size = 50
     for epoch in range(1, cfg.num_epochs + 1):
         batch_time = AverageMeter()
         data_time = AverageMeter()
