@@ -186,7 +186,7 @@ def generate_predict_feats(cfg, embed, pseudo_label, gts):
     return predict_feats
 
 
-def similarity_loss(features, queue, tau=0.07, sim_threshold=0.5):
+def similarity_loss(features, queue, tau=0.07, sim_threshold=0):
     """
     features: [B, D] current batch embeddings (normalized)
     queue: deque of [D] past embeddings (detached)
