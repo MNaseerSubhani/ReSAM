@@ -8,6 +8,7 @@ base_config = {
         "decay_factor": 10,
         "steps": [3000, 8000],
         "warmup_steps": 250,
+        "step_size" : 50
     },
     "corruptions": [
         "gaussian_noise",

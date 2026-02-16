@@ -332,7 +332,7 @@ def train_sam(cfg: Box, fabric: L.Fabric, model: Model, optimizer: _FabricOptimi
     match_interval = cfg.match_interval
     eval_interval = len(train_dataloader)
 
-    embedding_queue = []
+    # embedding_queue = []
     iter_mem_usage = []
 
     os.makedirs(os.path.join(cfg.out_dir, "save"), exist_ok=True)
@@ -340,13 +340,13 @@ def train_sam(cfg: Box, fabric: L.Fabric, model: Model, optimizer: _FabricOptimi
 
     with open(csv_path, "w", newline="") as f:
         writer = csv.writer(f)
-        writer.writerow(["Epoch", "Iteration", "Val_ent", "Status"])
+        writer.writerow(["Epoch", "Iteration", "Val_IoU", "Status"])
 
     fabric.print(f"Training enabled. Logging to: {csv_path}")
 
     eps = 1e-8
-    entropy_means = deque(maxlen=len(train_dataloader))
-
+    # entropy_means = deque(maxlen=len(train_dataloader))
+    step_size = cfg.step_size
     for epoch in range(1, cfg.num_epochs + 1):
         batch_time = AverageMeter()
         data_time = AverageMeter()
@@ -362,7 +362,7 @@ def train_sam(cfg: Box, fabric: L.Fabric, model: Model, optimizer: _FabricOptimi
             images_weak, images_strong, bboxes, gt_masks, img_paths = data
             del data
 
-            step_size = 50
+            
             for j in range(0, len(gt_masks[0]), step_size):
                 gt_masks_new = gt_masks[0][j:j+step_size].unsqueeze(0)
                 prompts = get_prompts(cfg, bboxes, gt_masks_new)
@@ -392,11 +392,9 @@ def train_sam(cfg: Box, fabric: L.Fabric, model: Model, optimizer: _FabricOptimi
                     embeddings, soft_masks, _, _ = model(images_weak, bboxes.unsqueeze(0))
 
                 sof_mask_prob = torch.sigmoid(torch.stack(soft_masks, dim=0))
-                entropy_sm = -(sof_mask_prob * torch.log(sof_mask_prob + eps) +
-                               (1 - sof_mask_prob) * torch.log(1 - sof_mask_prob + eps))
-                entropy_means.append(entropy_sm.detach().mean().cpu().item())
+             
 
-                _, pred_masks, iou_predictions, _ = model(images_strong, prompts)
+                hard_embeddings, pred_masks, iou_predictions, _ = model(images_strong, prompts)
                 del _
 
                 num_masks = sum(len(pred_mask) for pred_mask in pred_masks)
@@ -405,11 +403,16 @@ def train_sam(cfg: Box, fabric: L.Fabric, model: Model, optimizer: _FabricOptimi
                 loss_iou = torch.tensor(0., device=fabric.device)
                 loss_sim = torch.tensor(0., device=fabric.device)
 
+
+
+
                 batch_feats = [get_bbox_feature(embeddings, bbox) for bbox in bboxes]
+                batch_feats_hard = [get_bbox_feature(hard_embeddings, bbox) for bbox in bboxes]
                 
                 if len(feature_queue) == 32:
                     batch_feats = F.normalize(torch.stack(batch_feats, dim=0), dim=1)
-                    loss_sim = similarity_loss(feature_queue, feature_queue)
+                    batch_feats_hard = F.normalize(torch.stack(batch_feats_hard, dim=0), dim=1)
+                    loss_sim = similarity_loss(batch_feats_hard,feature_queue)
                     loss_sim = torch.tensor(0., device=batch_feats.device) if loss_sim == -1 else loss_sim
                     feature_queue.extend([f.detach() for f in batch_feats])
                 else:
@@ -459,11 +462,9 @@ def train_sam(cfg: Box, fabric: L.Fabric, model: Model, optimizer: _FabricOptimi
             if (iter + 1) % eval_interval == 0:
                 
                 avg_means, _ = validate(fabric, cfg, model, val_dataloader, cfg.name, epoch)
-
                 best_state = copy.deepcopy(model.state_dict())
                 torch.save(best_state, os.path.join(cfg.out_dir, "save", "best_model.pth"))
                 status = "Model Saved"
-              
                 with open(csv_path, "a", newline="") as f:
                     writer = csv.writer(f)
                     writer.writerow([epoch, iter + 1, avg_means, status])
@@ -528,20 +529,20 @@ def main(cfg: Box) -> int:
     optimizer, scheduler = configure_opt(cfg, model)
     model, optimizer = fabric.setup(model, optimizer)
 
-    auto_ckpt = None#_find_latest_checkpoint(os.path.join(cfg.out_dir, "save"))
+    # auto_ckpt = None#_find_latest_checkpoint(os.path.join(cfg.out_dir, "save"))
 
     
-    if auto_ckpt is not None:
-        full_checkpoint = fabric.load(auto_ckpt)
+    # if auto_ckpt is not None:
+    #     full_checkpoint = fabric.load(auto_ckpt)
 
-        if isinstance(full_checkpoint, dict) and "model" in full_checkpoint:
-            model.load_state_dict(full_checkpoint["model"])
-            if "optimizer" in full_checkpoint:
-                optimizer.load_state_dict(full_checkpoint["optimizer"])
-        else:
-            model.load_state_dict(full_checkpoint)
-        loaded = True
-        fabric.print(f"Resumed from explicit checkpoint: {cfg.model.ckpt}")
+    #     if isinstance(full_checkpoint, dict) and "model" in full_checkpoint:
+    #         model.load_state_dict(full_checkpoint["model"])
+    #         if "optimizer" in full_checkpoint:
+    #             optimizer.load_state_dict(full_checkpoint["optimizer"])
+    #     else:
+    #         model.load_state_dict(full_checkpoint)
+    #     loaded = True
+    #     fabric.print(f"Resumed from explicit checkpoint: {cfg.model.ckpt}")
    
 
     # print('-'*100)
