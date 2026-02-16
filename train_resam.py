@@ -26,7 +26,7 @@ from box import Box
 from datasets import call_load_dataset
 from utils.model import Model
 from utils.losses import DiceLoss, FocalLoss, Matching_Loss, cosine_similarity
-from utils.eval_utils import AverageMeter, validate, get_prompts, calc_iou, validate_iou
+from utils.eval_utils import AverageMeter, validate, get_prompts, calc_iou
 from utils.tools import copy_model, create_csv, reduce_instances
 from utils.utils import *
 
@@ -428,7 +428,7 @@ def train_sam(cfg: Box, fabric: L.Fabric, model: Model, optimizer: _FabricOptimi
                 loss_focal /= num_masks
                 loss_dice /= num_masks
 
-                loss_total = 20 * loss_focal + loss_dice + loss_iou #+ 0.1 * loss_sim
+                loss_total = 20 * loss_focal + loss_dice + loss_iou + 0.1 * loss_sim
                 if watcher.is_outlier(loss_total):
                     continue
 
@@ -458,22 +458,19 @@ def train_sam(cfg: Box, fabric: L.Fabric, model: Model, optimizer: _FabricOptimi
 
             if (iter + 1) % eval_interval == 0:
                 
-                # avg_means, _ = validate(fabric, cfg, model, val_dataloader, cfg.name, epoch)
-
-                overall_iou, overall_f1, size_iou = validate_iou(fabric, cfg, model, val_dataloader,  cfg.name, epoch=epoch)
+                avg_means, _ = validate(fabric, cfg, model, val_dataloader, cfg.name, epoch)
 
 
                 best_state = copy.deepcopy(model.state_dict())
                 torch.save(best_state, os.path.join(cfg.out_dir, "save", "best_model.pth"))
                 status = "Model Saved"
               
-
-                # with open(csv_path, "a", newline="") as f:
-                #     writer = csv.writer(f)
-                #     writer.writerow([epoch, iter + 1, avg_means, status])
+                with open(csv_path, "a", newline="") as f:
+                    writer = csv.writer(f)
+                    writer.writerow([epoch, iter + 1, avg_means, status])
                 avg_mem = sum(iter_mem_usage) / len(iter_mem_usage)
                 print(f"Average Memory {avg_mem:.2f} GB")
-                fabric.print(f"Validation IoU={overall_iou:.4f}  | {status}")
+                fabric.print(f"Validation IoU={avg_means:.4f}  | {status}")
 
 
             
@@ -553,9 +550,6 @@ def main(cfg: Box) -> int:
     # init_iou, _, = validate(fabric, cfg, model, val_data, name=cfg.name, epoch=0)
     # print('-'*100)
     # del _     
-
-
-    overall_iou, overall_f1, size_iou = validate_iou(fabric, cfg, model, val_data, name="val", epoch=0)
 
     
     train_sam(cfg, fabric, model, optimizer, scheduler, train_data, val_data)
