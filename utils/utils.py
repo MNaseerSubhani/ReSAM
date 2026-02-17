@@ -361,6 +361,7 @@ def save_incremental_by_image_name(out_dir, img_path, tag, img):
             idx += 1
 
     # save the image
+    print(file_path)
     cv2.imwrite(file_path, img)
 
 
@@ -504,5 +505,5 @@ def save_analyze_images(
     soft_masks_np = soft_masks_tensor.squeeze(1).detach().cpu().numpy()  # [N,H,W]
 
     merged_soft = (soft_masks_np.sum(axis=0) > 0.5).astype(np.uint8) * 255
-    print("save")
+    
     save_incremental_by_image_name(out_dir, img_path, "pseudo_mask", merged_soft)
