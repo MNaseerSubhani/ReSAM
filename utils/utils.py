@@ -367,80 +367,137 @@ def draw_bbox(img, bbox, color=(0,255,0), thickness=2):
     return img
 
 
+# def save_analyze_images(
+#     img_paths,
+#     gt_masks,
+#     pred_stack,
+#     soft_masks,
+#     bboxes,
+#     out_dir,
+#     index
+# ):
+#     os.makedirs(out_dir, exist_ok=True)
+
+#     # ------------------------------------------
+#     # Load original image
+#     # ------------------------------------------
+#     img = cv2.imread(img_paths[0])
+#     # img = cv2.flip(img, 1)
+#     if img is None:
+#         print("Could not load:", img_paths[0])
+#         return
+
+#     H, W = img.shape[:2]
+
+#     # ------------------------------------------
+#     # Save original
+#     # ------------------------------------------
+#     cv2.imwrite(f"{out_dir}/{index}.jpg", img)
+
+#     # ------------------------------------------
+#     # Save GT mask
+#     # gt_masks = [1,H,W] tensor
+#     # ------------------------------------------
+
+#     merged_gt = gt_masks[0].sum(axis=0)
+#     gt = (merged_gt.detach().cpu().numpy() * 255).astype(np.uint8)
+#     cv2.imwrite(f"{out_dir}/{index}_gt.jpg", gt)
+
+#     # -----------------------------------------------------
+#     # Build merged predicted mask from pred_stack
+#     # pred_stack shape = [N,1,H,W] inside pred_stack[0]
+#     # -----------------------------------------------------
+#     preds = pred_stack.detach().cpu().numpy()     # [N,1,H,W]
+#     preds = preds.squeeze(1)                          # [N,H,W]
+
+#     merged_pred = preds.sum(axis=0)
+#     merged_pred = (merged_pred > 0.5).astype(np.uint8) * 255
+
+#     # cv2.imwrite(f"{out_dir}/{index}_pred.jpg", merged_pred)
+#     # save_incremental_pseudo_mask(out_dir, index, merged_pred, "pred")
+#     save_incremental_by_image_name(out_dir, img_paths[0], "pred", merged_pred)
+
+#     # -----------------------------------------------------
+#     # Build pseudo mask from soft_masks
+#     # soft_masks shape = list of N tensors: [1,H,W]
+#     # -----------------------------------------------------
+#     # Construct pseudo mask
+
+#     soft_masks = torch.sigmoid(torch.stack(soft_masks, dim=0))
+#     soft_masks = soft_masks[0].detach().cpu().numpy()     # [N,1,H,W]                         # [N,H,W]
+
+#     merged_masks = soft_masks.sum(axis=0)
+#     merged_masks = (merged_masks > 0.5).astype(np.uint8) * 255
+
+#     # H, W = merged_masks.shape
+
+#     # # Convert mask to 3-channel for drawing boxes
+#     # merged_color = cv2.cvtColor(merged_masks, cv2.COLOR_GRAY2BGR)
+
+#     # # 3) Draw bounding boxes on the mask
+#     # # bboxes is list of [x1, y1, x2, y2]
+#     # for (x1, y1, x2, y2) in bboxes:
+#     #     x1 = int(x1); y1 = int(y1); x2 = int(x2); y2 = int(y2)
+#     #     cv2.rectangle(merged_color, (x1, y1), (x2, y2), (0, 0, 255), 2)
+
+#     # 4) Save final image
+#     # cv2.imwrite(f"{out_dir}/{index}_pseudo_mask.jpg", merged_masks)
+#     # save_incremental_pseudo_mask(out_dir, index, merged_masks, "pseudo")
+#     save_incremental_by_image_name(out_dir, img_paths[0], "pseudo_mask", merged_masks)
+
 def save_analyze_images(
     img_paths,
     gt_masks,
     pred_stack,
     soft_masks,
     bboxes,
-    out_dir,
-    index
+    out_dir
 ):
     os.makedirs(out_dir, exist_ok=True)
+
+    img_path = img_paths[0]
+    base_name = os.path.splitext(os.path.basename(img_path))[0]
 
     # ------------------------------------------
     # Load original image
     # ------------------------------------------
-    img = cv2.imread(img_paths[0])
-    # img = cv2.flip(img, 1)
+    img = cv2.imread(img_path)
     if img is None:
-        print("Could not load:", img_paths[0])
+        print("Could not load:", img_path)
         return
 
     H, W = img.shape[:2]
 
     # ------------------------------------------
-    # Save original
+    # Save original image (overwrite, no incremental)
     # ------------------------------------------
-    cv2.imwrite(f"{out_dir}/{index}.jpg", img)
+    cv2.imwrite(f"{out_dir}/{base_name}_orig.jpg", img)
 
     # ------------------------------------------
-    # Save GT mask
-    # gt_masks = [1,H,W] tensor
+    # Save GT mask (overwrite, no incremental)
     # ------------------------------------------
+    if gt_masks.ndim == 4:
+        merged_gt = gt_masks[0].sum(dim=0)
+    else:
+        merged_gt = gt_masks[0]
 
-    merged_gt = gt_masks[0].sum(axis=0)
     gt = (merged_gt.detach().cpu().numpy() * 255).astype(np.uint8)
-    cv2.imwrite(f"{out_dir}/{index}_gt.jpg", gt)
+    cv2.imwrite(f"{out_dir}/{base_name}_gt.jpg", gt)
 
     # -----------------------------------------------------
-    # Build merged predicted mask from pred_stack
-    # pred_stack shape = [N,1,H,W] inside pred_stack[0]
+    # Save pred_stack merged mask (INCREMENTAL)
     # -----------------------------------------------------
-    preds = pred_stack.detach().cpu().numpy()     # [N,1,H,W]
-    preds = preds.squeeze(1)                          # [N,H,W]
+    preds = pred_stack.detach().cpu().numpy()  # [N,1,H,W]
+    preds = preds.squeeze(1)                   # [N,H,W]
 
-    merged_pred = preds.sum(axis=0)
-    merged_pred = (merged_pred > 0.5).astype(np.uint8) * 255
-
-    # cv2.imwrite(f"{out_dir}/{index}_pred.jpg", merged_pred)
-    # save_incremental_pseudo_mask(out_dir, index, merged_pred, "pred")
-    save_incremental_by_image_name(out_dir, img_paths[0], "pred", merged_pred)
+    merged_pred = (preds.sum(axis=0) > 0.5).astype(np.uint8) * 255
+    save_incremental_by_image_name(out_dir, img_path, "pred", merged_pred)
 
     # -----------------------------------------------------
-    # Build pseudo mask from soft_masks
-    # soft_masks shape = list of N tensors: [1,H,W]
+    # Build pseudo mask from soft_masks (INCREMENTAL)
     # -----------------------------------------------------
-    # Construct pseudo mask
+    soft_masks_tensor = torch.sigmoid(torch.stack(soft_masks, dim=0))  # [N,1,H,W]
+    soft_masks_np = soft_masks_tensor.squeeze(1).detach().cpu().numpy()  # [N,H,W]
 
-    soft_masks = torch.sigmoid(torch.stack(soft_masks, dim=0))
-    soft_masks = soft_masks[0].detach().cpu().numpy()     # [N,1,H,W]                         # [N,H,W]
-
-    merged_masks = soft_masks.sum(axis=0)
-    merged_masks = (merged_masks > 0.5).astype(np.uint8) * 255
-
-    # H, W = merged_masks.shape
-
-    # # Convert mask to 3-channel for drawing boxes
-    # merged_color = cv2.cvtColor(merged_masks, cv2.COLOR_GRAY2BGR)
-
-    # # 3) Draw bounding boxes on the mask
-    # # bboxes is list of [x1, y1, x2, y2]
-    # for (x1, y1, x2, y2) in bboxes:
-    #     x1 = int(x1); y1 = int(y1); x2 = int(x2); y2 = int(y2)
-    #     cv2.rectangle(merged_color, (x1, y1), (x2, y2), (0, 0, 255), 2)
-
-    # 4) Save final image
-    # cv2.imwrite(f"{out_dir}/{index}_pseudo_mask.jpg", merged_masks)
-    # save_incremental_pseudo_mask(out_dir, index, merged_masks, "pseudo")
-    save_incremental_by_image_name(out_dir, img_paths[0], "pseudo_mask", merged_masks)
+    merged_soft = (soft_masks_np.sum(axis=0) > 0.5).astype(np.uint8) * 255
+    save_incremental_by_image_name(out_dir, img_path, "pseudo_mask", merged_soft)
