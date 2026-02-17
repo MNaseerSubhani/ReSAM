@@ -338,27 +338,31 @@ def create_entropy_mask(entropy_maps, threshold=0.5, device='cuda'):
 
 
 
-def save_incremental_by_image_name(out_dir, img_path, suffix, image):
+def save_incremental_by_image_name(out_dir, img_path, tag, img):
     """
-    Saves analyze result using image filename as base.
-    If file exists, increments with _2, _3, ...
+    Saves incrementally:
+    <name>_<tag>.jpg
+    <name>_<tag>_2.jpg
+    <name>_<tag>_3.jpg ...
     """
-    os.makedirs(out_dir, exist_ok=True)
+    base = os.path.splitext(os.path.basename(img_path))[0]
 
-    # Extract filename without extension
-    base_name = os.path.splitext(os.path.basename(img_path))[0]
+    # base file name
+    file_path = os.path.join(out_dir, f"{base}_{tag}.jpg")
 
-    # First candidate
-    save_path = os.path.join(out_dir, f"{base_name}_{suffix}.jpg")
+    # if exists → find next index
+    if os.path.exists(file_path):
+        idx = 2
+        while True:
+            new_path = os.path.join(out_dir, f"{base}_{tag}_{idx}.jpg")
+            if not os.path.exists(new_path):
+                file_path = new_path
+                break
+            idx += 1
 
-    # If exists → increment
-    counter = 2
-    while os.path.exists(save_path):
-        save_path = os.path.join(out_dir, f"{base_name}_{suffix}_{counter}.jpg")
-        counter += 1
-
-    cv2.imwrite(save_path, image)
-    return save_path
+    # save the image
+    cv2.imwrite(file_path, img)
+    print("Saved:", file_path)
 
 
 def draw_bbox(img, bbox, color=(0,255,0), thickness=2):
