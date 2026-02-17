@@ -338,9 +338,9 @@ def create_entropy_mask(entropy_maps, threshold=0.5, device='cuda'):
 
 
 
-def save_incremental_pseudo_mask(out_dir, index, merged_masks):
+def save_incremental_pseudo_mask(out_dir, index, merged_masks, file_nm):
     # First try: base name
-    base_path = os.path.join(out_dir, f"{index}_pseudo_mask.jpg")
+    base_path = os.path.join(out_dir, f"{index}_{file_nm}.jpg")
 
     # If base doesn't exist → save directly
     if not os.path.exists(base_path):
@@ -350,7 +350,7 @@ def save_incremental_pseudo_mask(out_dir, index, merged_masks):
     # Otherwise, search for next available number
     counter = 2
     while True:
-        new_path = os.path.join(out_dir, f"{index}_pseudo_mask_{counter}.jpg")
+        new_path = os.path.join(out_dir, f"{index}_{file_nm}_{counter}.jpg")
         if not os.path.exists(new_path):
             cv2.imwrite(new_path, merged_masks)
             return new_path
@@ -409,7 +409,8 @@ def save_analyze_images(
     merged_pred = preds.sum(axis=0)
     merged_pred = (merged_pred > 0.5).astype(np.uint8) * 255
 
-    cv2.imwrite(f"{out_dir}/{index}_pred.jpg", merged_pred)
+    # cv2.imwrite(f"{out_dir}/{index}_pred.jpg", merged_pred)
+    ave_incremental_pseudo_mask(out_dir, index, merged_pred, "pred")
 
     # -----------------------------------------------------
     # Build pseudo mask from soft_masks
@@ -436,4 +437,4 @@ def save_analyze_images(
 
     # 4) Save final image
     # cv2.imwrite(f"{out_dir}/{index}_pseudo_mask.jpg", merged_masks)
-    save_incremental_pseudo_mask(out_dir, index, merged_masks)
+    save_incremental_pseudo_mask(out_dir, index, merged_masks, "pseudo")
