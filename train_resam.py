@@ -445,7 +445,7 @@ def train_sam(cfg: Box, fabric: L.Fabric, model: Model, optimizer: _FabricOptimi
                     pred_stack_s  = pred_stack.squeeze(1)
                     pred_masks_sig = (pred_stack_s > 0.5).float()
 
-               
+                    print(pred_masks_sig.shape, soft_masks_sig.shape)
                     iou_pred = calculate_iou(gt_masks_bin, pred_masks_sig).item()
                     iou_soft = calculate_iou(gt_masks_bin, soft_masks_sig).item()
 
