@@ -415,11 +415,31 @@ def save_uncertanity_mask(cfg, model, loader):
             #         pts.append(pt)
 
 
+def save_incremental_pseudo_mask(out_dir, index, merged_masks):
+    # First try: base name
+    base_path = os.path.join(out_dir, f"{index}_pseudo_mask.jpg")
+
+    # If base doesn't exist → save directly
+    if not os.path.exists(base_path):
+        cv2.imwrite(base_path, merged_masks)
+        return base_path
+
+    # Otherwise, search for next available number
+    counter = 2
+    while True:
+        new_path = os.path.join(out_dir, f"{index}_pseudo_mask_{counter}.jpg")
+        if not os.path.exists(new_path):
+            cv2.imwrite(new_path, merged_masks)
+            return new_path
+        counter += 1
+
 
 def draw_bbox(img, bbox, color=(0,255,0), thickness=2):
     x1, y1, x2, y2 = map(int, bbox)
     img = cv2.rectangle(img.copy(), (x1,y1), (x2,y2), color, thickness)
     return img
+
+
 def save_analyze_images(
     img_paths,
     gt_masks,
@@ -480,16 +500,17 @@ def save_analyze_images(
     merged_masks = soft_masks.sum(axis=0)
     merged_masks = (merged_masks > 0.5).astype(np.uint8) * 255
 
-    H, W = merged_masks.shape
+    # H, W = merged_masks.shape
 
-    # Convert mask to 3-channel for drawing boxes
-    merged_color = cv2.cvtColor(merged_masks, cv2.COLOR_GRAY2BGR)
+    # # Convert mask to 3-channel for drawing boxes
+    # merged_color = cv2.cvtColor(merged_masks, cv2.COLOR_GRAY2BGR)
 
-    # 3) Draw bounding boxes on the mask
-    # bboxes is list of [x1, y1, x2, y2]
-    for (x1, y1, x2, y2) in bboxes:
-        x1 = int(x1); y1 = int(y1); x2 = int(x2); y2 = int(y2)
-        cv2.rectangle(merged_color, (x1, y1), (x2, y2), (0, 0, 255), 2)
+    # # 3) Draw bounding boxes on the mask
+    # # bboxes is list of [x1, y1, x2, y2]
+    # for (x1, y1, x2, y2) in bboxes:
+    #     x1 = int(x1); y1 = int(y1); x2 = int(x2); y2 = int(y2)
+    #     cv2.rectangle(merged_color, (x1, y1), (x2, y2), (0, 0, 255), 2)
 
     # 4) Save final image
-    cv2.imwrite(f"{out_dir}/{index}_pseudo_mask.jpg", merged_color)
+    # cv2.imwrite(f"{out_dir}/{index}_pseudo_mask.jpg", merged_masks)
+    save_incremental_pseudo_mask(out_dir, index, merged_masks)
