@@ -361,7 +361,6 @@ def save_incremental_by_image_name(out_dir, img_path, tag, img):
             idx += 1
 
     # save the image
-    print(file_path)
     cv2.imwrite(file_path, img)
 
 
