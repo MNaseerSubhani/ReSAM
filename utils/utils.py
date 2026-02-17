@@ -410,7 +410,7 @@ def save_analyze_images(
     merged_pred = (merged_pred > 0.5).astype(np.uint8) * 255
 
     # cv2.imwrite(f"{out_dir}/{index}_pred.jpg", merged_pred)
-    ave_incremental_pseudo_mask(out_dir, index, merged_pred, "pred")
+    save_incremental_pseudo_mask(out_dir, index, merged_pred, "pred")
 
     # -----------------------------------------------------
     # Build pseudo mask from soft_masks
