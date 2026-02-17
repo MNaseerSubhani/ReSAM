@@ -501,9 +501,13 @@ def save_analyze_images(
     # -----------------------------------------------------
     # Build pseudo mask from soft_masks (INCREMENTAL)
     # -----------------------------------------------------
-    soft_masks_tensor = torch.sigmoid(torch.stack(soft_masks, dim=0))  # [N,1,H,W]
-    soft_masks_np = soft_masks_tensor.squeeze(1).detach().cpu().numpy()  # [N,H,W]
 
-    merged_soft = (soft_masks_np.sum(axis=0) > 0.5).astype(np.uint8) * 255
+    soft_masks = torch.sigmoid(torch.stack(soft_masks, dim=0))
+    soft_masks = soft_masks[0].detach().cpu().numpy()     # [N,1,H,W]                         # [N,H,W]
+
+    merged_masks = soft_masks.sum(axis=0)
+    merged_masks = (merged_masks > 0.5).astype(np.uint8) * 255
+
+ 
     
-    save_incremental_by_image_name(out_dir, img_path, "pseudo_mask", merged_soft)
+    save_incremental_by_image_name(out_dir, img_path, "pseudo_mask", merged_masks)
