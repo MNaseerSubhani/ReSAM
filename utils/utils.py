@@ -10,7 +10,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 import cv2
 
-
+import os
 from .sample_utils import get_point_prompts
 
 class Store:
