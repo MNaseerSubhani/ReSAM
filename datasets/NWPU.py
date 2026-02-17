@@ -83,7 +83,7 @@ def load_datasets(cfg, img_size):
     train_dataloader = DataLoader(
         train,
         batch_size=cfg.batch_size,
-        shuffle=True,
+        shuffle=False,
         num_workers=cfg.num_workers,
         collate_fn=collate_fn,
     )
