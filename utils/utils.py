@@ -435,7 +435,7 @@ def save_analyze_images(
     # Load original image
     # ------------------------------------------
     img = cv2.imread(img_paths[0])
-    img = cv2.flip(img, 1)
+    # img = cv2.flip(img, 1)
     if img is None:
         print("Could not load:", img_paths[0])
         return

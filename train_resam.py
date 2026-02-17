@@ -481,7 +481,7 @@ def train_sam(cfg: Box, fabric: L.Fabric, model: Model, optimizer: _FabricOptimi
                 sim_losses.update(loss_sim.item(), batch_size)
 
             if analyze:
-                if iter not in analyze_indices:
+                if iter  in analyze_indices:
                     save_analyze_images(
                         img_paths,                    
                         gt_masks_new,  
