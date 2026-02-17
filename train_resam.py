@@ -452,6 +452,7 @@ def train_sam(cfg: Box, fabric: L.Fabric, model: Model, optimizer: _FabricOptimi
                     # Difference: positive if pred_stack improves over soft_mask
                     iou_diff = iou_soft - iou_pred
                     iou_diff_list.append(iou_diff)
+                    print(iou_diff)
            
 
 
