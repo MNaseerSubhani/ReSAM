@@ -348,8 +348,18 @@ def train_sam(cfg: Box, fabric: L.Fabric, model: Model, optimizer: _FabricOptimi
     # entropy_means = deque(maxlen=len(train_dataloader))
     step_size = 50
     if analyze:
-        analyze_indices = set(random.sample(range(len(train_dataloader.dataset)), 50))
-        iou_diff_list = []
+        # Select N random samples from the dataset
+        N = 50   # number you want
+        dataset = train_dataloader.dataset
+
+        random_indices = random.sample(range(len(dataset)), N)
+        analyze_img_paths = []
+
+        for idx in random_indices:
+            item = dataset[idx]
+            img_path = item[-1]  # last element is image path
+            analyze_img_paths.append(img_path)
+
     for epoch in range(1, cfg.num_epochs + 1):
         batch_time = AverageMeter()
         data_time = AverageMeter()
@@ -481,15 +491,15 @@ def train_sam(cfg: Box, fabric: L.Fabric, model: Model, optimizer: _FabricOptimi
                 sim_losses.update(loss_sim.item(), batch_size)
 
             if analyze:
-                if iter  in analyze_indices:
+
+                if img_paths[0]  in analyze_img_paths:
                     save_analyze_images(
                         img_paths,                    
                         gt_masks_new,  
                         pred_stack, 
                         soft_masks,                     
                         bboxes,                     
-                        os.path.join(cfg.out_dir, "analyze"),
-                        index=iter
+                        os.path.join(cfg.out_dir, "analyze")
                     )
 
             if (iter + 1) % match_interval == 0:

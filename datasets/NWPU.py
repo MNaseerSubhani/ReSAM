@@ -118,7 +118,7 @@ def load_datasets_soft(cfg, img_size, return_pt = False):
     soft_train_dataloader = DataLoader(
         soft_train,
         batch_size=cfg.batch_size,
-        shuffle=False,
+        shuffle=True,
         num_workers=cfg.num_workers,
         collate_fn=collate_fn_soft,
     )

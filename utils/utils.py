@@ -338,23 +338,27 @@ def create_entropy_mask(entropy_maps, threshold=0.5, device='cuda'):
 
 
 
-def save_incremental_pseudo_mask(out_dir, index, merged_masks, file_nm):
-    # First try: base name
-    base_path = os.path.join(out_dir, f"{index}_{file_nm}.jpg")
+def save_incremental_by_image_name(out_dir, img_path, suffix, image):
+    """
+    Saves analyze result using image filename as base.
+    If file exists, increments with _2, _3, ...
+    """
+    os.makedirs(out_dir, exist_ok=True)
 
-    # If base doesn't exist → save directly
-    if not os.path.exists(base_path):
-        cv2.imwrite(base_path, merged_masks)
-        return base_path
+    # Extract filename without extension
+    base_name = os.path.splitext(os.path.basename(img_path))[0]
 
-    # Otherwise, search for next available number
+    # First candidate
+    save_path = os.path.join(out_dir, f"{base_name}_{suffix}.jpg")
+
+    # If exists → increment
     counter = 2
-    while True:
-        new_path = os.path.join(out_dir, f"{index}_{file_nm}_{counter}.jpg")
-        if not os.path.exists(new_path):
-            cv2.imwrite(new_path, merged_masks)
-            return new_path
+    while os.path.exists(save_path):
+        save_path = os.path.join(out_dir, f"{base_name}_{suffix}_{counter}.jpg")
         counter += 1
+
+    cv2.imwrite(save_path, image)
+    return save_path
 
 
 def draw_bbox(img, bbox, color=(0,255,0), thickness=2):
@@ -410,7 +414,8 @@ def save_analyze_images(
     merged_pred = (merged_pred > 0.5).astype(np.uint8) * 255
 
     # cv2.imwrite(f"{out_dir}/{index}_pred.jpg", merged_pred)
-    save_incremental_pseudo_mask(out_dir, index, merged_pred, "pred")
+    # save_incremental_pseudo_mask(out_dir, index, merged_pred, "pred")
+    save_incremental_by_image_name(out_dir, img_paths[0], "pred", merged_pred)
 
     # -----------------------------------------------------
     # Build pseudo mask from soft_masks
@@ -437,4 +442,5 @@ def save_analyze_images(
 
     # 4) Save final image
     # cv2.imwrite(f"{out_dir}/{index}_pseudo_mask.jpg", merged_masks)
-    save_incremental_pseudo_mask(out_dir, index, merged_masks, "pseudo")
+    # save_incremental_pseudo_mask(out_dir, index, merged_masks, "pseudo")
+    save_incremental_by_image_name(out_dir, img_paths[0], "pseudo_mask", merged_masks)
