@@ -348,6 +348,7 @@ def train_sam(cfg: Box, fabric: L.Fabric, model: Model, optimizer: _FabricOptimi
     # entropy_means = deque(maxlen=len(train_dataloader))
     step_size = 50
     if analyze:
+        iou_diff_list=[]
         # Select N random samples from the dataset
         N = 50   # number you want
         dataset = train_dataloader.dataset
