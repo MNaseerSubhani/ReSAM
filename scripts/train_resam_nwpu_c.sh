@@ -1,5 +1,4 @@
 #!/bin/bash
-
 cfg_file="configs.config_nwpu"
 prompt="point"
 load_type="soft"

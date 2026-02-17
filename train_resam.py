@@ -319,7 +319,7 @@ feature_queue = deque(maxlen=32)  # keep up to 512 previous object embeddings
 #                     return
 
 
-
+analyze = True
 def train_sam(cfg: Box, fabric: L.Fabric, model: Model, optimizer: _FabricOptimizer,
               scheduler: _FabricOptimizer, train_dataloader: DataLoader, val_dataloader: DataLoader):
 
@@ -347,6 +347,9 @@ def train_sam(cfg: Box, fabric: L.Fabric, model: Model, optimizer: _FabricOptimi
     eps = 1e-8
     # entropy_means = deque(maxlen=len(train_dataloader))
     step_size = 50
+    if analyze:
+        analyze_indices = set(random.sample(range(len(train_dataloader.dataset)), 50))
+        iou_diff_list = []
     for epoch in range(1, cfg.num_epochs + 1):
         batch_time = AverageMeter()
         data_time = AverageMeter()
@@ -357,11 +360,14 @@ def train_sam(cfg: Box, fabric: L.Fabric, model: Model, optimizer: _FabricOptimi
         sim_losses = AverageMeter()
         end = time.time()
 
+
+
         for iter, data in enumerate(train_dataloader):
             data_time.update(time.time() - end)
             images_weak, images_strong, bboxes, gt_masks, img_paths = data
             del data
 
+            
             
             for j in range(0, len(gt_masks[0]), step_size):
                 gt_masks_new = gt_masks[0][j:j+step_size].unsqueeze(0)
@@ -391,7 +397,7 @@ def train_sam(cfg: Box, fabric: L.Fabric, model: Model, optimizer: _FabricOptimi
                 with torch.no_grad():
                     embeddings, soft_masks, _, _ = model(images_weak, bboxes.unsqueeze(0))
 
-                sof_mask_prob = torch.sigmoid(torch.stack(soft_masks, dim=0))
+                
              
 
                 hard_embeddings, pred_masks, iou_predictions, _ = model(images_strong, prompts)
@@ -419,12 +425,35 @@ def train_sam(cfg: Box, fabric: L.Fabric, model: Model, optimizer: _FabricOptimi
                     
                     loss_sim = torch.tensor(0., device=fabric.device)
 
+                 
+                
+
                 for pred_mask, soft_mask, iou_prediction, bbox in zip(pred_masks[0], soft_masks[0], iou_predictions[0], bboxes):
                     soft_mask = (soft_mask > 0.).float()
                     loss_focal += focal_loss(pred_mask, soft_mask)
                     loss_dice += dice_loss(pred_mask, soft_mask)
                     loss_iou += F.mse_loss(iou_prediction.view(-1), calc_iou(pred_mask.unsqueeze(0), soft_mask.unsqueeze(0)).view(-1),
                                            reduction='sum') / num_masks
+
+                if analyze:
+                    
+                  
+                    gt_masks_bin = (gt_masks_new[0] > 0.5).float()
+                    soft_masks_sig = torch.sigmoid(soft_masks[0])
+                    soft_masks_sig = (soft_masks_sig > 0.5).float()
+
+                    pred_stack_s  = pred_stack.squeeze(1)
+                    pred_masks_sig = (pred_stack_s > 0.5).float()
+
+               
+                    iou_pred = calculate_iou(gt_masks_bin.unsqueeze(0), pred_masks_sig.unsqueeze(0)).item()
+                    iou_soft = calculate_iou(gt_masks_bin.unsqueeze(0), soft_masks_sig.unsqueeze(0)).item()
+
+                    # Difference: positive if pred_stack improves over soft_mask
+                    iou_diff = iou_soft - iou_pred
+                    iou_diff_list.append(iou_diff)
+           
+
 
                 loss_focal /= num_masks
                 loss_dice /= num_masks
@@ -450,6 +479,18 @@ def train_sam(cfg: Box, fabric: L.Fabric, model: Model, optimizer: _FabricOptimi
                 total_losses.update(loss_total.item(), batch_size)
                 sim_losses.update(loss_sim.item(), batch_size)
 
+            if analyze:
+                if iter not in analyze_indices:
+                    save_analyze_images(
+                        img_paths,                    
+                        gt_masks_new,  
+                        pred_stack, 
+                        soft_masks,                     
+                        bboxes,                     
+                        os.path.join(cfg.out_dir, "analyze"),
+                        index=iter
+                    )
+
             if (iter + 1) % match_interval == 0:
                 fabric.print(
                     f"Epoch [{epoch}] Iter [{iter + 1}/{len(train_dataloader)}] "
@@ -469,6 +510,13 @@ def train_sam(cfg: Box, fabric: L.Fabric, model: Model, optimizer: _FabricOptimi
                 avg_mem = sum(iter_mem_usage) / len(iter_mem_usage)
                 print(f"Average Memory {avg_mem:.2f} GB")
                 fabric.print(f"Validation IoU={avg_means:.4f}  | {status}")
+
+                if analyze:
+                    iou_diff_tensor = torch.tensor(iou_diff_list)
+                    num_positive = (iou_diff_tensor > 0).sum().item()
+                    num_negative = (iou_diff_tensor < 0).sum().item()
+                    percent_improved = 100 * num_positive / (num_positive + num_negative + 1e-8)
+                    print(f"Percentage of mask improved (pred_stack vs soft_mask): {percent_improved:.2f}%")
 
 
             
