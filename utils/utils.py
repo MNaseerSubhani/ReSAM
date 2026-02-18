@@ -146,41 +146,63 @@ def generate_predict_feats(cfg, embed, pseudo_label, gts):
     return predict_feats
 
 
-def similarity_loss(features, queue, tau=0.07, sim_threshold=0):
+# def similarity_loss(features, queue, tau=0.07, sim_threshold=0):
+#     """
+#     features: [B, D] current batch embeddings (normalized)
+#     queue: deque of [D] past embeddings (detached)
+#     tau: temperature for softmax
+#     sim_threshold: cosine similarity threshold to consider "similar"
+#     """
+#     if len(queue) == 0:
+#         return -1
+
+#     # Stack past features from queue
+#     past_feats = torch.stack(list(queue), dim=0)  # [Q, D]
+#     features = torch.stack(list(features), dim=0)  # [B, D]
+
+#     # Normalize embeddings
+#     features = F.normalize(features, dim=1)
+#     past_feats = F.normalize(past_feats, dim=1)
+
+#     # Compute cosine similarities
+#     cos_sim = torch.mm(features, past_feats.t())  # [B, Q]
+
+#     # Apply threshold: set values below threshold to 0
+#     mask = (cos_sim >= sim_threshold).float()
+#     cos_sim_masked = cos_sim * mask  # [B, Q], below threshold becomes 0
+
+#     # Scale by temperature
+#     logits = cos_sim_masked / tau
+
+#     # Softmax over queue dimension
+#     probs = F.softmax(logits, dim=1)
+
+#     # Weighted alignment loss
+#     loss = ((1 - cos_sim_masked) * probs).sum(dim=1).mean()
+
+#     return loss
+
+
+def similarity_loss(features, queue, tau=0.07):
     """
-    features: [B, D] current batch embeddings (normalized)
-    queue: deque of [D] past embeddings (detached)
-    tau: temperature for softmax
-    sim_threshold: cosine similarity threshold to consider "similar"
+    soft_feats: [B, D]  (soft embeddings)
+    hard_feats: [B, D]  (hard embeddings)
     """
-    if len(queue) == 0:
-        return -1
+    # Normalize
+    soft_feats = F.normalize(soft_feats, dim=1)
+    hard_feats = F.normalize(hard_feats, dim=1)
 
-    # Stack past features from queue
-    past_feats = torch.stack(list(queue), dim=0)  # [Q, D]
-    features = torch.stack(list(features), dim=0)  # [B, D]
+    # Cosine similarity for diagonal pairs only
+    cos_sim = (soft_feats * hard_feats).sum(dim=1)  # [B]
 
-    # Normalize embeddings
-    features = F.normalize(features, dim=1)
-    past_feats = F.normalize(past_feats, dim=1)
+    # Temperature scaling
+    logits = cos_sim / tau  # [B]
 
-    # Compute cosine similarities
-    cos_sim = torch.mm(features, past_feats.t())  # [B, Q]
-
-    # Apply threshold: set values below threshold to 0
-    mask = (cos_sim >= sim_threshold).float()
-    cos_sim_masked = cos_sim * mask  # [B, Q], below threshold becomes 0
-
-    # Scale by temperature
-    logits = cos_sim_masked / tau
-
-    # Softmax over queue dimension
-    probs = F.softmax(logits, dim=1)
-
-    # Weighted alignment loss
-    loss = ((1 - cos_sim_masked) * probs).sum(dim=1).mean()
+    # Loss = -(similarity)
+    loss = (1 - cos_sim).mean()
 
     return loss
+
 
 
 def get_bbox_feature(embedding_map, bbox, stride=16, pooling='avg'):
