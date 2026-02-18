@@ -210,6 +210,8 @@ def similarity_loss(hard_feats, soft_feats, tau=0.07):
     """
 
     # Normalize (critical)
+    soft_feats = torch.stack(list(soft_feats), dim=0)  # [Q, D]
+    hard_feats = torch.stack(list(hard_feats), dim=0)  # [B, D]
     hard = F.normalize(hard_feats, dim=1)   # queries
     soft = F.normalize(soft_feats, dim=1)   # keys
 
