@@ -197,7 +197,7 @@ def similarity_loss(hard_feats,soft_feats , tau=0.07):
     cos_sim = (soft_feats * hard_feats).sum(dim=1)
 
     # Temperature scaling: sharper when tau is small
-    loss = ((1 - cos_sim) / tau).mean()
+    loss = ((1 - cos_sim) ).mean()
 
     return loss
 
