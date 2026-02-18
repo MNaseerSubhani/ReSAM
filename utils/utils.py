@@ -183,23 +183,22 @@ def generate_predict_feats(cfg, embed, pseudo_label, gts):
 #     return loss
 
 
-def similarity_loss(soft_feats, hard_feats):
+def similarity_loss(soft_feats, hard_feats, tau=0.07):
     """
     soft_feats: [B, D]
     hard_feats: [B, D]
-    Cosine similarity alignment loss.
+    Cosine similarity alignment loss with temperature.
     """
-    # Normalize
     soft_feats = F.normalize(soft_feats, dim=1)
     hard_feats = F.normalize(hard_feats, dim=1)
 
-    # Cosine similarity between matching pairs
     cos_sim = (soft_feats * hard_feats).sum(dim=1)
 
-    # Alignment loss: 1 - cosine similarity
-    loss = (1 - cos_sim).mean()
+    # Temperature scaling: sharper when tau is small
+    loss = ((1 - cos_sim) / tau).mean()
 
     return loss
+
 
 
 
