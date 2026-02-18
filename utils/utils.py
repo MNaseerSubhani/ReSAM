@@ -348,10 +348,21 @@ def save_analyze_images(
 
     H, W = img.shape[:2]
 
+    img_with_points = img.copy()
+    for box in bboxes:
+        # Assuming box = [x1, y1, x2, y2]
+        x1, y1, x2, y2 = map(int, box)
+        cx = (x1 + x2) // 2
+        cy = (y1 + y2) // 2
+        cv2.circle(img_with_points, (cx, cy), radius=5, color=(0, 0, 255), thickness=-1)  # Red in BGR
+
+    # Save original image with points
+    # cv2.imwrite(f"{out_dir}/{base_name}_orig_with_points.jpg", img_with_points)
+
     # ------------------------------------------
     # Save original image (overwrite, no incremental)
     # ------------------------------------------
-    cv2.imwrite(f"{out_dir}/{base_name}_orig.jpg", img)
+    cv2.imwrite(f"{out_dir}/{base_name}_orig.jpg", img_with_points)
 
     # ------------------------------------------
     # Save GT mask (overwrite, no incremental)
