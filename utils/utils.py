@@ -146,44 +146,9 @@ def generate_predict_feats(cfg, embed, pseudo_label, gts):
     return predict_feats
 
 
-# def similarity_loss(features, queue, tau=0.07, sim_threshold=0):
-#     """
-#     features: [B, D] current batch embeddings (normalized)
-#     queue: deque of [D] past embeddings (detached)
-#     tau: temperature for softmax
-#     sim_threshold: cosine similarity threshold to consider "similar"
-#     """
-#     if len(queue) == 0:
-#         return -1
-
-#     # Stack past features from queue
-#     past_feats = torch.stack(list(queue), dim=0)  # [Q, D]
-#     features = torch.stack(list(features), dim=0)  # [B, D]
-
-#     # Normalize embeddings
-#     features = F.normalize(features, dim=1)
-#     past_feats = F.normalize(past_feats, dim=1)
-
-#     # Compute cosine similarities
-#     cos_sim = features * past_feats.t()# torch.mm(features, past_feats.t())  # [B, Q]
-
-#     # Apply threshold: set values below threshold to 0
-#     mask = (cos_sim >= sim_threshold).float()
-#     cos_sim_masked = cos_sim * mask  # [B, Q], below threshold becomes 0
-
-#     # Scale by temperature
-#     logits = cos_sim_masked / tau
-
-#     # Softmax over queue dimension
-#     probs = F.softmax(logits, dim=1)
-
-#     # Weighted alignment loss
-#     loss = ((1 - cos_sim_masked) * probs).sum(dim=1).mean()
-
-#     return loss
 
 
-def similarity_loss(hard_feats,soft_feats , tau=0.07):
+def similarity_loss(hard_feats,soft_feats):
     """
     soft_feats: [B, D]
     hard_feats: [B, D]
@@ -201,29 +166,6 @@ def similarity_loss(hard_feats,soft_feats , tau=0.07):
 
     return loss
 
-
-
-# def similarity_loss(hard_feats, soft_feats, tau=0.07):
-#     """
-#     hard_feats: [B, D]
-#     soft_feats: [B, D]
-#     """
-
-#     # Normalize (critical)
-#     soft_feats = torch.stack(list(soft_feats), dim=0)  # [Q, D]
-#     hard_feats = torch.stack(list(hard_feats), dim=0)  # [B, D]
-#     hard = F.normalize(hard_feats, dim=1)   # queries
-#     soft = F.normalize(soft_feats, dim=1)   # keys
-
-#     # Full similarity matrix [B, B]
-#     logits = torch.matmul(hard, soft.T) / tau
-
-#     # Positives are on the diagonal
-#     labels = torch.arange(len(hard)).long().to(hard.device)
-
-#     # Cross-entropy over the softmax similarities
-#     loss = F.cross_entropy(logits, labels)
-#     return loss
 
 
 
@@ -350,21 +292,10 @@ def save_analyze_images(
 
     H, W = img.shape[:2]
 
-    img_with_points = img.copy()
-    for box in bboxes:
-        # Assuming box = [x1, y1, x2, y2]
-        x1, y1, x2, y2 = map(int, box)
-        cx = (x1 + x2) // 2
-        cy = (y1 + y2) // 2
-        cv2.circle(img_with_points, (cx, cy), radius=5, color=(0, 0, 255), thickness=-1)  # Red in BGR
-
-    # Save original image with points
-    # cv2.imwrite(f"{out_dir}/{base_name}_orig_with_points.jpg", img_with_points)
-
     # ------------------------------------------
     # Save original image (overwrite, no incremental)
     # ------------------------------------------
-    cv2.imwrite(f"{out_dir}/{base_name}_orig.jpg", img_with_points)
+    cv2.imwrite(f"{out_dir}/{base_name}_orig.jpg", img)
 
     # ------------------------------------------
     # Save GT mask (overwrite, no incremental)
@@ -396,6 +327,6 @@ def save_analyze_images(
     merged_masks = soft_masks.sum(axis=0)
     merged_masks = (merged_masks > 0.5).astype(np.uint8) * 255
 
- 
+
     
     save_incremental_by_image_name(out_dir, img_path, "pseudo_mask", merged_masks)
