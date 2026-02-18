@@ -12,5 +12,3 @@ for output_dir in "${output_dirs[@]}"; do
     done
 done
 
-
-
