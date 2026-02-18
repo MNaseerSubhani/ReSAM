@@ -80,7 +80,7 @@ def process_forward(img_tensor, prompt, model):
 
 # persistent feature queue
 feature_queue = deque(maxlen=32)  # keep up to 512 previous object embeddings
-
+feature_queue_hard = deque(maxlen=32)
 
 # def train_sam(
 #     cfg: Box,
@@ -427,12 +427,15 @@ def train_sam(cfg: Box, fabric: L.Fabric, model: Model, optimizer: _FabricOptimi
                 if len(feature_queue) == 32:
                     batch_feats = F.normalize(torch.stack(batch_feats, dim=0), dim=1)
                     batch_feats_hard = F.normalize(torch.stack(batch_feats_hard, dim=0), dim=1)
-                    loss_sim = similarity_loss(batch_feats_hard,feature_queue)
+                    loss_sim = similarity_loss(feature_queue_hard,feature_queue)
                     loss_sim = torch.tensor(0., device=batch_feats.device) if loss_sim == -1 else loss_sim
                     feature_queue.extend([f.detach() for f in batch_feats])
+                    feature_queue_hard.extend([f.detach() for f in batch_feats_hard])
                 else:
                     batch_feats = F.normalize(torch.stack(batch_feats, dim=0), dim=1)
+                    batch_feats_hard = F.normalize(torch.stack(batch_feats_hard, dim=0), dim=1)
                     feature_queue.extend([f.detach() for f in batch_feats])
+                    feature_queue_hard.extend([f.detach() for f in batch_feats_hard])
                     
                     loss_sim = torch.tensor(0., device=fabric.device)
 
