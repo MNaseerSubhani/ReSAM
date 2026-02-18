@@ -320,7 +320,7 @@ feature_queue_hard = deque(maxlen=32)
 
 
 analyze = True
-def train_sam(cfg: Box, fabric: L.Fabric, model: Model, optimizer: _FabricOptimizer,
+def train_resam(cfg: Box, fabric: L.Fabric, model: Model, optimizer: _FabricOptimizer,
               scheduler: _FabricOptimizer, train_dataloader: DataLoader, val_dataloader: DataLoader):
 
     watcher = LossWatcher(window=50, factor=4)
@@ -378,8 +378,6 @@ def train_sam(cfg: Box, fabric: L.Fabric, model: Model, optimizer: _FabricOptimi
             images_weak, images_strong, bboxes, gt_masks, img_paths = data
             del data
 
-            
-            
             for j in range(0, len(gt_masks[0]), step_size):
                 gt_masks_new = gt_masks[0][j:j+step_size].unsqueeze(0)
                 prompts = get_prompts(cfg, bboxes, gt_masks_new)
@@ -407,10 +405,6 @@ def train_sam(cfg: Box, fabric: L.Fabric, model: Model, optimizer: _FabricOptimi
 
                 with torch.no_grad():
                     embeddings, soft_masks, _, _ = model(images_weak, bboxes.unsqueeze(0))
-                # soft_masks_sig = torch.sigmoid(soft_masks[0])
-                # soft_masks_sig = (soft_masks_sig > 0.5).float()
-                
-             
 
                 hard_embeddings, pred_masks, iou_predictions, _ = model(images_strong, prompts)
                 del _
@@ -422,8 +416,10 @@ def train_sam(cfg: Box, fabric: L.Fabric, model: Model, optimizer: _FabricOptimi
                 loss_sim = torch.tensor(0., device=fabric.device)
 
 
-                batch_feats = [generate_predict_feats(embeddings, bbox) for bbox in bboxes]
-                batch_feats_hard = [generate_predict_feats(hard_embeddings, bbox) for bbox in bboxes]
+              
+                batch_feats = [get_bbox_feature(embeddings, bbox) for bbox in bboxes]
+                batch_feats_hard = [get_bbox_feature(hard_embeddings, bbox) for bbox in bboxes]
+            
                 
                 if len(feature_queue) == 32:
                     batch_feats = F.normalize(torch.stack(batch_feats, dim=0), dim=1)
@@ -451,8 +447,6 @@ def train_sam(cfg: Box, fabric: L.Fabric, model: Model, optimizer: _FabricOptimi
                                            reduction='sum') / num_masks
 
                 if analyze:
-                    
-                  
                     gt_masks_bin = (gt_masks_new[0] > 0.5).float()
                     soft_masks_sig = torch.sigmoid(soft_masks[0])
                     soft_masks_sig = (soft_masks_sig > 0.5).float()
@@ -468,9 +462,6 @@ def train_sam(cfg: Box, fabric: L.Fabric, model: Model, optimizer: _FabricOptimi
                         iou_diff = iou_soft - iou_pred
                         iou_diff_list.append(iou_diff)
              
-           
-
-
                 loss_focal /= num_masks
                 loss_dice /= num_masks
 
@@ -591,21 +582,6 @@ def main(cfg: Box) -> int:
     optimizer, scheduler = configure_opt(cfg, model)
     model, optimizer = fabric.setup(model, optimizer)
 
-    # auto_ckpt = None#_find_latest_checkpoint(os.path.join(cfg.out_dir, "save"))
-
-    
-    # if auto_ckpt is not None:
-    #     full_checkpoint = fabric.load(auto_ckpt)
-
-    #     if isinstance(full_checkpoint, dict) and "model" in full_checkpoint:
-    #         model.load_state_dict(full_checkpoint["model"])
-    #         if "optimizer" in full_checkpoint:
-    #             optimizer.load_state_dict(full_checkpoint["optimizer"])
-    #     else:
-    #         model.load_state_dict(full_checkpoint)
-    #     loaded = True
-    #     fabric.print(f"Resumed from explicit checkpoint: {cfg.model.ckpt}")
-   
 
     # print('-'*100)
     # print('\033[92mDirect test on the original SAM.\033[0m') 
@@ -614,7 +590,7 @@ def main(cfg: Box) -> int:
     # del _     
 
     
-    train_sam(cfg, fabric, model, optimizer, scheduler, train_data, val_data)
+    train_resam(cfg, fabric, model, optimizer, scheduler, train_data, val_data)
 
     del model, train_data, val_data
 
