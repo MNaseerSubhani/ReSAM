@@ -422,8 +422,8 @@ def train_sam(cfg: Box, fabric: L.Fabric, model: Model, optimizer: _FabricOptimi
                 loss_sim = torch.tensor(0., device=fabric.device)
 
 
-                batch_feats = [generate_predict_feats(embeddings, soft_masks_sig) for bbox in bboxes]
-                batch_feats_hard = [generate_predict_feats(hard_embeddings, soft_masks_sig) for bbox in bboxes]
+                batch_feats = [get_multi_mask_features(embeddings, soft_masks_sig) for bbox in bboxes]
+                batch_feats_hard = [get_multi_mask_features(hard_embeddings, soft_masks_sig) for bbox in bboxes]
                 
                 if len(feature_queue) == 32:
                     batch_feats = F.normalize(torch.stack(batch_feats, dim=0), dim=1)
