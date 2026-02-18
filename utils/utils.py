@@ -183,7 +183,7 @@ def generate_predict_feats(cfg, embed, pseudo_label, gts):
 #     return loss
 
 
-def similarity_loss(features, queue, tau=0.07):
+def similarity_loss(soft_feats, hard_feats, tau=0.07):
     """
     soft_feats: [B, D]  (soft embeddings)
     hard_feats: [B, D]  (hard embeddings)
