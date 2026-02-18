@@ -183,47 +183,47 @@ def generate_predict_feats(cfg, embed, pseudo_label, gts):
 #     return loss
 
 
-# def similarity_loss(hard_feats,soft_feats , tau=0.07):
-#     """
-#     soft_feats: [B, D]
-#     hard_feats: [B, D]
-#     Cosine similarity alignment loss with temperature.
-#     """
-#     soft_feats = torch.stack(list(soft_feats), dim=0)  # [Q, D]
-#     hard_feats = torch.stack(list(hard_feats), dim=0)  # [B, D]
-#     soft_feats = F.normalize(soft_feats, dim=1)
-#     hard_feats = F.normalize(hard_feats, dim=1)
-
-#     cos_sim = (soft_feats * hard_feats).sum(dim=1)
-
-  
-#     loss = ((1 - cos_sim) ).mean()
-
-#     return loss
-
-
-
-def similarity_loss(hard_feats, soft_feats, tau=0.07):
+def similarity_loss(hard_feats,soft_feats , tau=0.07):
     """
-    hard_feats: [B, D]
     soft_feats: [B, D]
+    hard_feats: [B, D]
+    Cosine similarity alignment loss with temperature.
     """
-
-    # Normalize (critical)
     soft_feats = torch.stack(list(soft_feats), dim=0)  # [Q, D]
     hard_feats = torch.stack(list(hard_feats), dim=0)  # [B, D]
-    hard = F.normalize(hard_feats, dim=1)   # queries
-    soft = F.normalize(soft_feats, dim=1)   # keys
+    soft_feats = F.normalize(soft_feats, dim=1)
+    hard_feats = F.normalize(hard_feats, dim=1)
 
-    # Full similarity matrix [B, B]
-    logits = torch.matmul(hard, soft.T) / tau
+    cos_sim = (soft_feats * hard_feats).sum(dim=1)
 
-    # Positives are on the diagonal
-    labels = torch.arange(len(hard)).long().to(hard.device)
+  
+    loss = ((1 - cos_sim) ).mean()
 
-    # Cross-entropy over the softmax similarities
-    loss = F.cross_entropy(logits, labels)
     return loss
+
+
+
+# def similarity_loss(hard_feats, soft_feats, tau=0.07):
+#     """
+#     hard_feats: [B, D]
+#     soft_feats: [B, D]
+#     """
+
+#     # Normalize (critical)
+#     soft_feats = torch.stack(list(soft_feats), dim=0)  # [Q, D]
+#     hard_feats = torch.stack(list(hard_feats), dim=0)  # [B, D]
+#     hard = F.normalize(hard_feats, dim=1)   # queries
+#     soft = F.normalize(soft_feats, dim=1)   # keys
+
+#     # Full similarity matrix [B, B]
+#     logits = torch.matmul(hard, soft.T) / tau
+
+#     # Positives are on the diagonal
+#     labels = torch.arange(len(hard)).long().to(hard.device)
+
+#     # Cross-entropy over the softmax similarities
+#     loss = F.cross_entropy(logits, labels)
+#     return loss
 
 
 
