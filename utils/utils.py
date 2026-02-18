@@ -183,12 +183,14 @@ def generate_predict_feats(cfg, embed, pseudo_label, gts):
 #     return loss
 
 
-def similarity_loss(soft_feats, hard_feats, tau=0.07):
+def similarity_loss(hard_feats,soft_feats , tau=0.07):
     """
     soft_feats: [B, D]
     hard_feats: [B, D]
     Cosine similarity alignment loss with temperature.
     """
+    soft_feats = torch.stack(list(soft_feats), dim=0)  # [Q, D]
+    hard_feats = torch.stack(list(hard_feats), dim=0)  # [B, D]
     soft_feats = F.normalize(soft_feats, dim=1)
     hard_feats = F.normalize(hard_feats, dim=1)
 
