@@ -146,60 +146,60 @@ def generate_predict_feats(cfg, embed, pseudo_label, gts):
     return predict_feats
 
 
-# def similarity_loss(features, queue, tau=0.07, sim_threshold=0):
-#     """
-#     features: [B, D] current batch embeddings (normalized)
-#     queue: deque of [D] past embeddings (detached)
-#     tau: temperature for softmax
-#     sim_threshold: cosine similarity threshold to consider "similar"
-#     """
-#     if len(queue) == 0:
-#         return -1
-
-#     # Stack past features from queue
-#     past_feats = torch.stack(list(queue), dim=0)  # [Q, D]
-#     features = torch.stack(list(features), dim=0)  # [B, D]
-
-#     # Normalize embeddings
-#     features = F.normalize(features, dim=1)
-#     past_feats = F.normalize(past_feats, dim=1)
-
-#     # Compute cosine similarities
-#     cos_sim = torch.mm(features, past_feats.t())  # [B, Q]
-
-#     # Apply threshold: set values below threshold to 0
-#     mask = (cos_sim >= sim_threshold).float()
-#     cos_sim_masked = cos_sim * mask  # [B, Q], below threshold becomes 0
-
-#     # Scale by temperature
-#     logits = cos_sim_masked / tau
-
-#     # Softmax over queue dimension
-#     probs = F.softmax(logits, dim=1)
-
-#     # Weighted alignment loss
-#     loss = ((1 - cos_sim_masked) * probs).sum(dim=1).mean()
-
-#     return loss
-
-
-def similarity_loss(hard_feats,soft_feats , tau=0.07):
+def similarity_loss(features, queue, tau=0.07, sim_threshold=0):
     """
-    soft_feats: [B, D]
-    hard_feats: [B, D]
-    Cosine similarity alignment loss with temperature.
+    features: [B, D] current batch embeddings (normalized)
+    queue: deque of [D] past embeddings (detached)
+    tau: temperature for softmax
+    sim_threshold: cosine similarity threshold to consider "similar"
     """
-    soft_feats = torch.stack(list(soft_feats), dim=0)  # [Q, D]
-    hard_feats = torch.stack(list(hard_feats), dim=0)  # [B, D]
-    soft_feats = F.normalize(soft_feats, dim=1)
-    hard_feats = F.normalize(hard_feats, dim=1)
+    if len(queue) == 0:
+        return -1
 
-    cos_sim = (soft_feats * hard_feats).sum(dim=1)
+    # Stack past features from queue
+    past_feats = torch.stack(list(queue), dim=0)  # [Q, D]
+    features = torch.stack(list(features), dim=0)  # [B, D]
 
-    # Temperature scaling: sharper when tau is small
-    loss = ((1 - cos_sim) / tau).mean()
+    # Normalize embeddings
+    features = F.normalize(features, dim=1)
+    past_feats = F.normalize(past_feats, dim=1)
+
+    # Compute cosine similarities
+    cos_sim = features * past_feats.t()# torch.mm(features, past_feats.t())  # [B, Q]
+
+    # Apply threshold: set values below threshold to 0
+    mask = (cos_sim >= sim_threshold).float()
+    cos_sim_masked = cos_sim * mask  # [B, Q], below threshold becomes 0
+
+    # Scale by temperature
+    logits = cos_sim_masked / tau
+
+    # Softmax over queue dimension
+    probs = F.softmax(logits, dim=1)
+
+    # Weighted alignment loss
+    loss = ((1 - cos_sim_masked) * probs).sum(dim=1).mean()
 
     return loss
+
+
+# def similarity_loss(hard_feats,soft_feats , tau=0.07):
+#     """
+#     soft_feats: [B, D]
+#     hard_feats: [B, D]
+#     Cosine similarity alignment loss with temperature.
+#     """
+#     soft_feats = torch.stack(list(soft_feats), dim=0)  # [Q, D]
+#     hard_feats = torch.stack(list(hard_feats), dim=0)  # [B, D]
+#     soft_feats = F.normalize(soft_feats, dim=1)
+#     hard_feats = F.normalize(hard_feats, dim=1)
+
+#     cos_sim = (soft_feats * hard_feats).sum(dim=1)
+
+#     # Temperature scaling: sharper when tau is small
+#     loss = ((1 - cos_sim) / tau).mean()
+
+#     return loss
 
 
 
