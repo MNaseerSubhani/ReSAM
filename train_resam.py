@@ -486,6 +486,9 @@ def train_resam(cfg: Box, fabric: L.Fabric, model: Model, optimizer: _FabricOpti
                 total_losses.update(loss_total.item(), batch_size)
                 sim_losses.update(loss_sim.item(), batch_size)
 
+                torch.cuda.empty_cache()
+                fabric.barrier()
+
             if analyze:
 
                 if img_paths[0]  in analyze_img_paths:
