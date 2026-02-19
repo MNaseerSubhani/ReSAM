@@ -330,7 +330,7 @@ def train_resam(cfg: Box, fabric: L.Fabric, model: Model, optimizer: _FabricOpti
     no_improve_count = 0
     max_patience = cfg.get("patience", 3)
     match_interval = cfg.match_interval
-    eval_interval = len(train_dataloader)
+    eval_interval = 400#len(train_dataloader)
 
     # embedding_queue = []
     iter_mem_usage = []
