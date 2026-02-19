@@ -34,6 +34,7 @@ import  csv, copy
 import torch
 import torch.nn.functional as F
 from collections import deque
+import matplotlib. pyplot as plt
 
 # vis = False
 
@@ -409,6 +410,9 @@ def train_resam(cfg: Box, fabric: L.Fabric, model: Model, optimizer: _FabricOpti
                 hard_embeddings, pred_masks, iou_predictions, _ = model(images_strong, prompts)
                 del _
 
+
+
+
                 num_masks = sum(len(pred_mask) for pred_mask in pred_masks)
                 loss_focal = torch.tensor(0., device=fabric.device)
                 loss_dice = torch.tensor(0., device=fabric.device)
@@ -440,6 +444,10 @@ def train_resam(cfg: Box, fabric: L.Fabric, model: Model, optimizer: _FabricOpti
                 
 
                 for pred_mask, soft_mask, iou_prediction, bbox in zip(pred_masks[0], soft_masks[0], iou_predictions[0], bboxes):
+                    plt.imshow(pred_mask.detach().cpu().numpy(), cmap='viridis')
+                    plt.show()
+                    plt.imshow(soft_mask.detach().cpu().numpy(), cmap='viridis')
+                    plt.show()
                     soft_mask = (soft_mask > 0.).float()
                     loss_focal += focal_loss(pred_mask, soft_mask)
                     loss_dice += dice_loss(pred_mask, soft_mask)
