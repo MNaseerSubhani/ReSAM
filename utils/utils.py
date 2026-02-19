@@ -117,33 +117,6 @@ def get_prompts(cfg: Box, bboxes, gt_masks):
         raise ValueError("Prompt Type Error!")
     return prompts
 
-# def generate_predict_feats(cfg, embed, pseudo_label, gts):
-#     coords, lbls = gts
-#     selected_coords = []
-    
-#     num_insts = len(pseudo_label)
-#     num_points = cfg.num_points
-#     for coord_grp, lbl_grp in zip(coords, lbls):
-#         for coord, lbl in zip(coord_grp, lbl_grp):  
-#             if lbl.item() == 1:  
-#                 selected_coords.append(coord.tolist())
-
-#     # Downsample coordinates (SAM's stride is 16)
-#     coords = [[int(c // 16) for c in pair] for pair in selected_coords]
-
-#     embed = embed.permute(1, 2, 0)  # [H, W, C]
-
-#     pos_pts = [] 
-
-#     for index in range(0, num_insts * num_points, num_points):
-#         index = random.randint(0, num_points - 1)
-#         x, y = coords[index]
-#         pos_pt = embed[x, y]
-#         pos_pts.append(pos_pt)
-
-#     predict_feats = torch.stack(pos_pts, dim=0)
-
-#     return predict_feats
 
 
 
@@ -236,58 +209,6 @@ def create_entropy_mask(entropy_maps, threshold=0.5, device='cuda'):
     
     return entropy_masks
 
-
-# def get_multi_mask_features(embedding_map, pseudo_masks, pooling='avg'):
-#     """
-#     Extract feature vectors for multiple instances in a single image using masks.
-
-#     Args:
-#         embedding_map (Tensor): (C, H_feat, W_feat) or (1, C, H_feat, W_feat)
-#         pseudo_masks (Tensor): (N, 1024, 1024)  -- binary masks per instance
-#         pooling (str): 'avg' or 'max'
-
-#     Returns:
-#         Tensor: (N, C) feature vectors
-#     """
-
-#     # Remove batch if present
-#     if embedding_map.dim() == 4:
-#         embedding_map = embedding_map[0]   # → (C, H_feat, W_feat)
-
-#     C, H_feat, W_feat = embedding_map.shape
-#     N = pseudo_masks.shape[0]
-
-#     # Resize masks to feature-map resolution
-#     pseudo_masks = pseudo_masks.unsqueeze(1).float()  # (N,1,1024,1024)
-
-#     masks_small = F.interpolate(
-#         pseudo_masks,
-#         size=(H_feat, W_feat),
-#         mode='nearest'
-#     )  # → (N,1,H_feat,W_feat)
-
-#     # Expand embedding map for broadcasting
-#     emb = embedding_map.unsqueeze(0)  # (1,C,H_feat,W_feat)
-#     emb = emb.expand(N, C, H_feat, W_feat)  # (N,C,H_feat,W_feat)
-
-#     # Apply mask
-#     masked = emb * masks_small  # (N,C,H_feat,W_feat)
-
-#     if pooling == 'avg':
-#         eps = 1e-6
-#         summed = masked.sum(dim=(2,3))        # (N,C)
-#         count = masks_small.sum(dim=(2,3)) + eps
-#         feats = summed / count                # (N,C)
-
-#     elif pooling == 'max':
-#         masked_copy = masked.clone()
-#         masked_copy[masks_small == 0] = -1e9
-#         feats = masked_copy.amax(dim=(2,3))   # (N,C)
-
-#     else:
-#         raise ValueError("pooling must be 'avg' or 'max'")
-
-#     return feats
 
 
 def save_incremental_by_image_name(out_dir, img_path, tag, img):
