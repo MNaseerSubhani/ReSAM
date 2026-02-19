@@ -319,7 +319,7 @@ feature_queue_hard = deque(maxlen=32)
 #                     return
 
 
-analyze = True
+analyze = False
 def train_resam(cfg: Box, fabric: L.Fabric, model: Model, optimizer: _FabricOptimizer,
               scheduler: _FabricOptimizer, train_dataloader: DataLoader, val_dataloader: DataLoader):
 
@@ -346,7 +346,7 @@ def train_resam(cfg: Box, fabric: L.Fabric, model: Model, optimizer: _FabricOpti
 
     eps = 1e-8
     # entropy_means = deque(maxlen=len(train_dataloader))
-    step_size = 10
+    step_size = 50
     if analyze:
         iou_diff_list=[]
         # Select N random samples from the dataset
