@@ -346,7 +346,7 @@ def train_resam(cfg: Box, fabric: L.Fabric, model: Model, optimizer: _FabricOpti
 
     eps = 1e-8
     # entropy_means = deque(maxlen=len(train_dataloader))
-    step_size = 50
+    step_size = 10
     if analyze:
         iou_diff_list=[]
         # Select N random samples from the dataset
