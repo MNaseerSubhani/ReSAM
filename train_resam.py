@@ -448,6 +448,7 @@ def train_resam(cfg: Box, fabric: L.Fabric, model: Model, optimizer: _FabricOpti
                     plt.show()
                     plt.imshow(soft_mask.detach().cpu().numpy(), cmap='viridis')
                     plt.show()
+                    print("DDD")
                     soft_mask = (soft_mask > 0.).float()
                     loss_focal += focal_loss(pred_mask, soft_mask)
                     loss_dice += dice_loss(pred_mask, soft_mask)
