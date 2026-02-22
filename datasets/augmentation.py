@@ -10,7 +10,6 @@ from imagecorruptions import corrupt, get_corruption_names
 
 weak_transforms = A.Compose(
     [A.Flip()],
-    # [A.Equalize()],
     bbox_params=A.BboxParams(format="pascal_voc", label_fields=["category_ids"]),
     # keypoint_params=A.KeypointParams(format='xy')
 )
