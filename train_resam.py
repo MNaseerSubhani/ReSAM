@@ -166,7 +166,7 @@ def train_resam(cfg: Box, fabric: L.Fabric, model: Model, optimizer: _FabricOpti
                 valid_bboxes = []
                 for i, (pred, ent) in enumerate(zip(pred_binary, entropy_maps)):
                     pred_w_overlap = pred[0] * invert_overlap_map[0]
-                    ys, xs = torch.where(pred_w_overlap > 0.2)
+                    ys, xs = torch.where(pred_w_overlap > 0.5)
                     if len(xs) > 0 and len(ys) > 0:
                         valid_bboxes.append(torch.tensor([xs.min().item(), ys.min().item(),
                                                           xs.max().item(), ys.max().item()],
@@ -192,24 +192,24 @@ def train_resam(cfg: Box, fabric: L.Fabric, model: Model, optimizer: _FabricOpti
 
 
               
-                batch_feats = [get_bbox_feature(embeddings, bbox) for bbox in bboxes]
-                batch_feats_hard = [get_bbox_feature(hard_embeddings, bbox) for bbox in bboxes]
+                # batch_feats = [get_bbox_feature(embeddings, bbox) for bbox in bboxes]
+                # batch_feats_hard = [get_bbox_feature(hard_embeddings, bbox) for bbox in bboxes]
             
                 
-                if len(feature_queue) == 32:
-                    batch_feats = F.normalize(torch.stack(batch_feats, dim=0), dim=1)
-                    batch_feats_hard = F.normalize(torch.stack(batch_feats_hard, dim=0), dim=1)
-                    loss_sim = similarity_loss(feature_queue_hard,feature_queue)
-                    loss_sim = torch.tensor(0., device=batch_feats.device) if loss_sim == -1 else loss_sim
-                    feature_queue.extend([f.detach() for f in batch_feats])
-                    feature_queue_hard.extend([f.detach() for f in batch_feats_hard])
-                else:
-                    batch_feats = F.normalize(torch.stack(batch_feats, dim=0), dim=1)
-                    batch_feats_hard = F.normalize(torch.stack(batch_feats_hard, dim=0), dim=1)
-                    feature_queue.extend([f.detach() for f in batch_feats])
-                    feature_queue_hard.extend([f.detach() for f in batch_feats_hard])
+                # if len(feature_queue) == 32:
+                #     batch_feats = F.normalize(torch.stack(batch_feats, dim=0), dim=1)
+                #     batch_feats_hard = F.normalize(torch.stack(batch_feats_hard, dim=0), dim=1)
+                #     loss_sim = similarity_loss(feature_queue_hard,feature_queue)
+                #     loss_sim = torch.tensor(0., device=batch_feats.device) if loss_sim == -1 else loss_sim
+                #     feature_queue.extend([f.detach() for f in batch_feats])
+                #     feature_queue_hard.extend([f.detach() for f in batch_feats_hard])
+                # else:
+                #     batch_feats = F.normalize(torch.stack(batch_feats, dim=0), dim=1)
+                #     batch_feats_hard = F.normalize(torch.stack(batch_feats_hard, dim=0), dim=1)
+                #     feature_queue.extend([f.detach() for f in batch_feats])
+                #     feature_queue_hard.extend([f.detach() for f in batch_feats_hard])
                     
-                    loss_sim = torch.tensor(0., device=fabric.device)
+                #     loss_sim = torch.tensor(0., device=fabric.device)
 
                 for pred_mask, soft_mask, iou_prediction, bbox in zip(pred_masks[0], soft_masks[0], iou_predictions[0], bboxes):
                     
