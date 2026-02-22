@@ -53,7 +53,14 @@ class LossWatcher:
             return False
         recent_avg = sum(self.losses[-self.window:]) / self.window
         return loss.item() > recent_avg * self.factor
+import torch
+import torch.nn.functional as F
 
+def cosine_sim(img1: torch.Tensor, img2: torch.Tensor):
+    # flatten to vectors
+    v1 = img1.flatten().float()
+    v2 = img2.flatten().float()
+    return F.cosine_similarity(v1, v2, dim=0)
 
 
 
@@ -144,10 +151,14 @@ def train_resam(cfg: Box, fabric: L.Fabric, model: Model, optimizer: _FabricOpti
             images_weak, images_strong, bboxes, gt_masks, img_paths = data
             del data
 
+            print(cosine_sim(images_strong, images_weak))
+
             for j in range(0, len(gt_masks[0]), step_size):
                 gt_masks_new = gt_masks[0][j:j+step_size].unsqueeze(0)
                 prompts = get_prompts(cfg, bboxes, gt_masks_new)
                 batch_size = images_weak.size(0)
+
+
 
 
                 entropy_maps, preds = process_forward(images_weak, prompts, model)
@@ -358,11 +369,11 @@ def main(cfg: Box) -> int:
     model, optimizer = fabric.setup(model, optimizer)
 
 
-    print('-'*100)
-    print('\033[92mDirect test on the original SAM.\033[0m') 
-    init_iou, _, = validate(fabric, cfg, model, val_data, name=cfg.name, epoch=0)
-    print('-'*100)
-    del _     
+    # print('-'*100)
+    # print('\033[92mDirect test on the original SAM.\033[0m') 
+    # init_iou, _, = validate(fabric, cfg, model, val_data, name=cfg.name, epoch=0)
+    # print('-'*100)
+    # del _     
 
     
     train_resam(cfg, fabric, model, optimizer, scheduler, train_data, val_data)
