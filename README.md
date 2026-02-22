@@ -8,7 +8,7 @@
 
 
 ## 🚀 Latest Updates
-- SAM2 training: coming soon
+- **20 Feb 2026** Accepted at CVPR 2026.
 - **26 Nov 2025**: The arXiv version is released [here](https://arxiv.org/abs/2511.21606).
 ---
 
