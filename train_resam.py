@@ -36,7 +36,6 @@ import torch.nn.functional as F
 from collections import deque
 import matplotlib. pyplot as plt
 
-# vis = False
 
 
 class LossWatcher:
@@ -53,15 +52,6 @@ class LossWatcher:
             return False
         recent_avg = sum(self.losses[-self.window:]) / self.window
         return loss.item() > recent_avg * self.factor
-import torch
-import torch.nn.functional as F
-
-def cosine_sim(img1: torch.Tensor, img2: torch.Tensor):
-    # flatten to vectors
-    v1 = img1.flatten().float()
-    v2 = img2.flatten().float()
-    return F.cosine_similarity(v1, v2, dim=0)
-
 
 
 
@@ -151,7 +141,7 @@ def train_resam(cfg: Box, fabric: L.Fabric, model: Model, optimizer: _FabricOpti
             images_weak, images_strong, bboxes, gt_masks, img_paths = data
             del data
 
-            print(cosine_sim(images_strong, images_weak))
+
 
             for j in range(0, len(gt_masks[0]), step_size):
                 gt_masks_new = gt_masks[0][j:j+step_size].unsqueeze(0)
@@ -248,7 +238,7 @@ def train_resam(cfg: Box, fabric: L.Fabric, model: Model, optimizer: _FabricOpti
                 loss_focal /= num_masks
                 loss_dice /= num_masks
 
-                loss_total = 20 * loss_focal + loss_dice + loss_iou + 0.1 * loss_sim
+                loss_total = 20 * loss_focal + loss_dice + loss_iou #+ 0.1 * loss_sim
                 if watcher.is_outlier(loss_total):
                     continue
 
