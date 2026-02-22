@@ -178,7 +178,7 @@ def train_resam(cfg: Box, fabric: L.Fabric, model: Model, optimizer: _FabricOpti
                 with torch.no_grad():
                     embeddings, soft_masks, _, _ = model(images_weak, bboxes.unsqueeze(0))
 
-                hard_embeddings, pred_masks, iou_predictions, _ = model(images_strong, prompts)
+                _, pred_masks, iou_predictions, _ = model(images_strong, prompts)
                 del _
 
 
