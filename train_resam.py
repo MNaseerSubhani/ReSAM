@@ -213,7 +213,7 @@ def train_resam(cfg: Box, fabric: L.Fabric, model: Model, optimizer: _FabricOpti
 
                 for pred_mask, soft_mask, iou_prediction, bbox in zip(pred_masks[0], soft_masks[0], iou_predictions[0], bboxes):
                     
-                    soft_mask = (soft_mask > 0.).float()
+                    # soft_mask = (soft_mask > 0.).float()
                     loss_focal += focal_loss(pred_mask, soft_mask)
                     loss_dice += dice_loss(pred_mask, soft_mask)
                     loss_iou += F.mse_loss(iou_prediction.view(-1), calc_iou(pred_mask.unsqueeze(0), soft_mask.unsqueeze(0)).view(-1),
