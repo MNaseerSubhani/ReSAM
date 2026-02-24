@@ -91,107 +91,84 @@ feature_queue_hard = deque(maxlen=32)
 
 
 
-################################
+# ################################
 
 
 
 
 
-def get_bbox_feature(embedding_map, bbox, stride=16, pooling='avg'):
-    """
-    Extract a feature vector from an embedding map given a bounding box.
+# def get_bbox_feature(embedding_map, bbox, stride=16, pooling='avg'):
+#     """
+#     Extract a feature vector from an embedding map given a bounding box.
     
-    Args:
-        embedding_map (torch.Tensor): Shape (C, H_feat, W_feat) or (B, C, H_feat, W_feat)
-        bbox (list or torch.Tensor): [x1, y1, x2, y2] in original image coordinates
-        stride (int): Downscaling factor between image and feature map
-        pooling (str): 'avg' or 'max' pooling inside the bbox region
+#     Args:
+#         embedding_map (torch.Tensor): Shape (C, H_feat, W_feat) or (B, C, H_feat, W_feat)
+#         bbox (list or torch.Tensor): [x1, y1, x2, y2] in original image coordinates
+#         stride (int): Downscaling factor between image and feature map
+#         pooling (str): 'avg' or 'max' pooling inside the bbox region
         
-    Returns:
-        torch.Tensor: Feature vector of shape (C,)
-    """
-    # If batch dimension exists, assume batch size 1
-    if embedding_map.dim() == 4:
-        embedding_map = embedding_map[0]
+#     Returns:
+#         torch.Tensor: Feature vector of shape (C,)
+#     """
+#     # If batch dimension exists, assume batch size 1
+#     if embedding_map.dim() == 4:
+#         embedding_map = embedding_map[0]
 
-    C, H_feat, W_feat = embedding_map.shape
-    x1, y1, x2, y2 = bbox
+#     C, H_feat, W_feat = embedding_map.shape
+#     x1, y1, x2, y2 = bbox
 
-    # Map bbox to feature map coordinates
-    fx1 = max(int(x1 / stride), 0)
-    fy1 = max(int(y1 / stride), 0)
-    fx2 = min(int((x2 + stride - 1) / stride), W_feat)  # ceil division
-    fy2 = min(int((y2 + stride - 1) / stride), H_feat)
+#     # Map bbox to feature map coordinates
+#     fx1 = max(int(x1 / stride), 0)
+#     fy1 = max(int(y1 / stride), 0)
+#     fx2 = min(int((x2 + stride - 1) / stride), W_feat)  # ceil division
+#     fy2 = min(int((y2 + stride - 1) / stride), H_feat)
 
-    # Crop the feature map to bbox region
-    region = embedding_map[:, fy1:fy2, fx1:fx2]
+#     # Crop the feature map to bbox region
+#     region = embedding_map[:, fy1:fy2, fx1:fx2]
 
-    if region.numel() == 0:
-        # fallback to global feature if bbox is too small
-        region = embedding_map
+#     if region.numel() == 0:
+#         # fallback to global feature if bbox is too small
+#         region = embedding_map
 
-    # Pool to get a single feature vector
-    if pooling == 'avg':
-        feature_vec = region.mean(dim=(1,2))
-    elif pooling == 'max':
-        feature_vec = region.amax(dim=(1,2))
-    else:
-        raise ValueError("pooling must be 'avg' or 'max'")
+#     # Pool to get a single feature vector
+#     if pooling == 'avg':
+#         feature_vec = region.mean(dim=(1,2))
+#     elif pooling == 'max':
+#         feature_vec = region.amax(dim=(1,2))
+#     else:
+#         raise ValueError("pooling must be 'avg' or 'max'")
 
-    return feature_vec
-
-
+#     return feature_vec
 
 
-def create_entropy_mask(entropy_maps, threshold=0.5, device='cuda'):
-    """
-    Create a mask to reduce learning from high entropy regions.
+
+
+# def create_entropy_mask(entropy_maps, threshold=0.5, device='cuda'):
+#     """
+#     Create a mask to reduce learning from high entropy regions.
     
-    Args:
-        entropy_maps: List of entropy maps for each instance
-        threshold: Entropy threshold above which to mask out regions
-        device: Device to place the mask on
+#     Args:
+#         entropy_maps: List of entropy maps for each instance
+#         threshold: Entropy threshold above which to mask out regions
+#         device: Device to place the mask on
     
-    Returns:
-        List of entropy masks (0 for high entropy, 1 for low entropy)
-    """
-    entropy_masks = []
+#     Returns:
+#         List of entropy masks (0 for high entropy, 1 for low entropy)
+#     """
+#     entropy_masks = []
     
-    for entropy_map in entropy_maps:
-        # Create binary mask: 1 for low entropy, 0 for high entropy
-        entropy_mask = (entropy_map < threshold).float()
-        entropy_masks.append(entropy_mask)
+#     for entropy_map in entropy_maps:
+#         # Create binary mask: 1 for low entropy, 0 for high entropy
+#         entropy_mask = (entropy_map < threshold).float()
+#         entropy_masks.append(entropy_mask)
     
-    return entropy_masks
+#     return entropy_masks
 
 
 
 
-def process_forward(img_tensor, prompt, model):
-    with torch.no_grad():
-        _, masks_pred, _, _ = model(img_tensor, prompt)
-    entropy_maps = []
-    pred_ins = []
-    eps=1e-8
-    for i, mask_p in enumerate( masks_pred[0]):
-        mask_p = torch.sigmoid(mask_p)
-        p = mask_p.clamp(1e-6, 1 - 1e-6)
-        if p.ndim == 2:
-            p = p.unsqueeze(0)
 
-        entropy = - (p * torch.log(p + eps) + (1 - p) * torch.log(1 - p + eps))
-        max_ent = torch.log(torch.tensor(2.0, device=mask_p.device))
-        entropy_norm = entropy / (max_ent + 1e-8)   # [0, 1]
-        entropy_maps.append(entropy_norm)
-        pred_ins.append(p)
-
-
-
-    return entropy_maps, pred_ins
-
-
-
-###################
+# ###################
 
 
 
@@ -304,11 +281,11 @@ def train_resam(cfg: Box, fabric: L.Fabric, model: Model, optimizer: _FabricOpti
                 # bboxes = torch.stack(valid_bboxes)
 
                 bboxes = []
-                point_list = []
-                point_labels_list = []
+                # point_list = []
+                # point_labels_list = []
                 for i,  (pred, ent) in enumerate( zip(pred_binary, entropy_maps)):
-                    point_coords = prompts[0][0][i][:].unsqueeze(0)
-                    point_coords_lab = prompts[0][1][i][:].unsqueeze(0)
+                    # point_coords = prompts[0][0][i][:].unsqueeze(0)
+                    # point_coords_lab = prompts[0][1][i][:].unsqueeze(0)
 
                     pred_w_overlap = ((pred[0]*invert_overlap_map[0]  ) )#    * ((1 - 0.1 * ent[0]))
                     ys, xs = torch.where(pred_w_overlap > 0.5)
@@ -318,15 +295,15 @@ def train_resam(cfg: Box, fabric: L.Fabric, model: Model, optimizer: _FabricOpti
 
                         bboxes.append(torch.tensor([x_min, y_min , x_max, y_max], dtype=torch.float32))
 
-                        point_list.append(point_coords)
-                        point_labels_list.append(point_coords_lab)
+                        # point_list.append(point_coords)
+                        # point_labels_list.append(point_coords_lab)
                     
                 if len(bboxes) == 0:
                     continue  # skip if no valid region
 
-                point_ = torch.cat(point_list).squeeze(1)
-                point_labels_ = torch.cat(point_labels_list)
-                new_prompts = [(point_, point_labels_)]
+                # point_ = torch.cat(point_list).squeeze(1)
+                # point_labels_ = torch.cat(point_labels_list)
+                # new_prompts = [(point_, point_labels_)]
 
                 bboxes = torch.stack(bboxes)
 
