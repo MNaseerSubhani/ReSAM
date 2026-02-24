@@ -82,7 +82,7 @@ feature_queue_hard = deque(maxlen=32)
 
 
 
-analyze = True
+analyze = False
 
 def train_resam(cfg: Box, fabric: L.Fabric, model: Model, optimizer: _FabricOptimizer,
               scheduler: _FabricOptimizer, train_dataloader: DataLoader, val_dataloader: DataLoader):
