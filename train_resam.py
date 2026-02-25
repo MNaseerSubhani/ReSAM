@@ -156,11 +156,11 @@ def train_resam(cfg: Box, fabric: L.Fabric, model: Model, optimizer: _FabricOpti
             invert_overlap_map = 1.0 - overlap_map
 
             bboxes = []
-            point_list = []
-            point_labels_list = []
+            # point_list = []
+            # point_labels_list = []
             for i,  (pred, ent) in enumerate( zip(pred_binary, entropy_maps)):
-                point_coords = prompts[0][0][i][:].unsqueeze(0)
-                point_coords_lab = prompts[0][1][i][:].unsqueeze(0)
+                # point_coords = prompts[0][0][i][:].unsqueeze(0)
+                # point_coords_lab = prompts[0][1][i][:].unsqueeze(0)
                 pred_w_overlap = ((pred[0]*invert_overlap_map[0]) )
                 ys, xs = torch.where(pred_w_overlap > 0.5)
                 if len(xs) > 0 and len(ys) > 0:
@@ -168,22 +168,22 @@ def train_resam(cfg: Box, fabric: L.Fabric, model: Model, optimizer: _FabricOpti
                     y_min, y_max = ys.min().item(), ys.max().item()
 
                     bboxes.append(torch.tensor([x_min, y_min , x_max, y_max], dtype=torch.float32))
-                    point_list.append(point_coords)
-                    point_labels_list.append(point_coords_lab)
+                    # point_list.append(point_coords)
+                    # point_labels_list.append(point_coords_lab)
 
             if len(bboxes) == 0:
                 continue  # skip if no valid region
 
-            point_ = torch.cat(point_list).squeeze(1)
-            point_labels_ = torch.cat(point_labels_list)
-            new_prompts = [(point_, point_labels_)]
+            # point_ = torch.cat(point_list).squeeze(1)
+            # point_labels_ = torch.cat(point_labels_list)
+            # new_prompts = [(point_, point_labels_)]
 
             bboxes = torch.stack(bboxes)
 
             with torch.no_grad():
                 embeddings, soft_masks, _, _ = model(images_weak, bboxes.unsqueeze(0))
 
-            hard_embeddings, pred_masks, iou_predictions, _ = model(images_strong, new_prompts)
+            hard_embeddings, pred_masks, iou_predictions, _ = model(images_strong, prompts)
             del _
 
             num_masks = sum(len(pred_mask) for pred_mask in pred_masks)
