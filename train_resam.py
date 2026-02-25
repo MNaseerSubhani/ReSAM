@@ -68,9 +68,9 @@ def process_forward(img_tensor, prompt, model):
             p = p.unsqueeze(0)
 
         entropy = - (p * torch.log(p + eps) + (1 - p) * torch.log(1 - p + eps))
-        max_ent = torch.log(torch.tensor(2.0, device=mask_p.device))
-        entropy_norm = entropy / (max_ent + 1e-8)   # [0, 1]
-        entropy_maps.append(entropy_norm)
+        # max_ent = torch.log(torch.tensor(2.0, device=mask_p.device))
+        # entropy_norm = entropy / (max_ent + 1e-8)   # [0, 1]
+        entropy_maps.append(entropy)
         pred_ins.append(p)
 
     return entropy_maps, pred_ins
@@ -233,7 +233,7 @@ def train_resam(cfg: Box, fabric: L.Fabric, model: Model, optimizer: _FabricOpti
             loss_focal /= num_masks
             loss_dice /= num_masks
 
-            loss_total = 20 * loss_focal + loss_dice + 0.6 * loss_sim
+            loss_total = 20 * loss_focal + loss_dice + 0.1 * loss_sim
             if watcher.is_outlier(loss_total):
                 continue
 
