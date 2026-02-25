@@ -457,6 +457,23 @@ def train_resam(cfg: Box, fabric: L.Fabric, model: Model, optimizer: _FabricOpti
             del  pred_masks, iou_predictions 
             del pred_stack, overlap_map, invert_overlap_map
             torch.cuda.empty_cache()
+
+            if analyze:
+                gt_masks_bin = (gt_masks_new[0] > 0.5).float()
+                soft_masks_sig = torch.sigmoid(soft_masks[0])
+                soft_masks_sig = (soft_masks_sig > 0.5).float()
+
+                pred_stack_s  = pred_stack.squeeze(1)
+                pred_masks_sig = (pred_stack_s > 0.5).float()
+
+                if pred_masks_sig.shape[0] ==soft_masks_sig.shape[0]:
+                    iou_pred = calculate_iou(gt_masks_bin, pred_masks_sig).item()
+                    iou_soft = calculate_iou(gt_masks_bin, soft_masks_sig).item()
+
+                    # Difference: positive if pred_stack improves over soft_mask
+                    iou_diff = iou_soft - iou_pred
+                    iou_diff_list.append(iou_diff)
+
             # loss_dist = loss_dist / num_masks
             loss_dice = loss_dice / num_masks
             loss_focal = loss_focal / num_masks
