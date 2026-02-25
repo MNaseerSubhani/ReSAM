@@ -68,8 +68,8 @@ def process_forward(img_tensor, prompt, model):
             p = p.unsqueeze(0)
 
         entropy = - (p * torch.log(p + eps) + (1 - p) * torch.log(1 - p + eps))
-        # max_ent = torch.log(torch.tensor(2.0, device=mask_p.device))
-        # entropy_norm = entropy / (max_ent + 1e-8)   # [0, 1]
+        max_ent = torch.log(torch.tensor(2.0, device=mask_p.device))
+        entropy_norm = entropy / (max_ent + 1e-8)   # [0, 1]
         entropy_maps.append(entropy)
         pred_ins.append(p)
 
@@ -151,7 +151,7 @@ def train_resam(cfg: Box, fabric: L.Fabric, model: Model, optimizer: _FabricOpti
             pred_stack = torch.stack(preds, dim=0)
             entropy_maps = torch.stack(entropy_maps, dim=0)
 
-            pred_binary = (( pred_stack) > 0.8).float()    #(1 - entropy_maps) *
+            pred_binary = (((1 - entropy_maps) * pred_stack) > 0.3).float()    #
             overlap_map = (pred_binary.sum(dim=0) > 1).float()
             invert_overlap_map = 1.0 - overlap_map
 
