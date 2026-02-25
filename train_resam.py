@@ -320,7 +320,6 @@ def train_resam(
     # collected = sort_entropy_(model, target_pts)
     focal_loss = FocalLoss()
     dice_loss = DiceLoss()
-    best_ent = init_iou
     best_state = copy.deepcopy(model.state_dict())
     no_improve_count = 0
     max_patience = cfg.get("patience", 3)  # stop if no improvement for X validations
@@ -339,7 +338,7 @@ def train_resam(
     # Initialize CSV
     with open(csv_path, "w", newline="") as f:
         writer = csv.writer(f)
-        writer.writerow(["Epoch", "Iteration", "Val_ent", "Best_ent", "Status"])
+        writer.writerow(["Epoch", "Iteration", "Val_ent", "Status"])
 
     fabric.print(f"Training with rollback enabled. Logging to: {csv_path}")
 
