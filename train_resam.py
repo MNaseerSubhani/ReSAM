@@ -509,6 +509,9 @@ def train_resam(cfg: Box, fabric: L.Fabric, model: Model, optimizer: _FabricOpti
             torch.cuda.empty_cache()
             del  prompts, soft_masks
 
+            curr_mem = torch.cuda.memory_allocated() / 1024**3
+            iter_mem_usage.append(curr_mem)
+
             batch_time.update(time.time() - end)
             end = time.time()
 
