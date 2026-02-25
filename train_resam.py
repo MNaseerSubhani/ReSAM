@@ -345,7 +345,7 @@ def train_resam(
 
     entropy_means = deque(maxlen=len(train_dataloader))
 
-    # overlap_ratios = []
+
 
     eps = 1e-8
     for epoch in range(1, cfg.num_epochs + 1):
