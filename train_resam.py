@@ -379,7 +379,6 @@ def train_resam(
             pred_stack = torch.stack(preds, dim=0)
             entropy_maps = torch.stack(entropy_maps, dim=0)
 
-            # pred_binary = ((entropy_maps < 0.5) & (pred_stack > 0.5) ).float()
             pred_binary = (((1 - entropy_maps) * (pred_stack)) > 0.3) .float()
             overlap_count = pred_binary.sum(dim=0)
             overlap_map = (overlap_count > 1).float()
@@ -420,7 +419,7 @@ def train_resam(
             loss_sim = torch.tensor(0., device=fabric.device)
 
 
-            batch_feats = []  # collect all bbox features in current image
+            batch_feats = []  
 
             for i, (pred_mask, soft_mask, iou_prediction, bbox) in enumerate(
                     zip(pred_masks[0], soft_masks[0], iou_predictions[0], bboxes  )
