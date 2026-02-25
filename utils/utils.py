@@ -8,8 +8,9 @@ from scipy.optimize import linear_sum_assignment
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+import cv2
 
-from .finch import FINCH
+import os
 from .sample_utils import get_point_prompts
 
 class Store:
@@ -106,48 +107,6 @@ def cal_mask_ious(
     return mask_ious, soft_mask
 
 
-def neg_prompt_calibration(
-    cfg,
-    mask_ious,
-    prompts,
-):
-    '''
-    mask_ious:[mask_nums,mask_nums]
-    '''
-    point_list = []
-    point_labels_list = []
-    num_points = cfg.num_points
-    for m in range(len(mask_ious)):
-            
-        pos_point_coords = prompts[0][0][m][:num_points].unsqueeze(0) 
-        neg_point = prompts[0][0][m][num_points:].unsqueeze(0)  
-        neg_points_list = []
-        neg_points_list.extend(neg_point[0])
-
-        indices = torch.nonzero(mask_ious[m] > float(cfg.iou_thr)).squeeze(1)
-
-        if indices.numel() != 0:
-            # neg_points_list = []
-            for indice in indices:
-                neg_points_list.extend(prompts[0][0][indice][:num_points])
-            neg_points = random.sample(neg_points_list, num_points)
-        else:
-            neg_points =neg_points_list
-            
-        neg_point_coords = torch.tensor([p.tolist() for p in neg_points], device=neg_point.device).unsqueeze(0)
-
-        point_coords = torch.cat((pos_point_coords, neg_point_coords), dim=1) 
-
-        point_list.append(point_coords)
-        pos_point_labels = torch.ones(pos_point_coords.shape[0:2], dtype=torch.int, device=neg_point.device)
-        neg_point_labels = torch.zeros(neg_point_coords.shape[0:2], dtype=torch.int, device=neg_point.device)
-        point_labels = torch.cat((pos_point_labels, neg_point_labels), dim=1)  
-        point_labels_list.append(point_labels)
-
-    point_ = torch.cat(point_list).squeeze(1)
-    point_labels_ = torch.cat(point_labels_list)
-    new_prompts = [(point_, point_labels_)]
-    return new_prompts
 
 def get_prompts(cfg: Box, bboxes, gt_masks):
     if cfg.prompt == "box" or cfg.prompt == "coarse":
@@ -158,203 +117,190 @@ def get_prompts(cfg: Box, bboxes, gt_masks):
         raise ValueError("Prompt Type Error!")
     return prompts
 
-def generate_predict_feats(cfg, embed, pseudo_label, gts):
-    coords, lbls = gts
-    selected_coords = []
+
+
+
+
+def similarity_loss(hard_feats,soft_feats):
+    """
+    soft_feats: [B, D]
+    hard_feats: [B, D]
+    Cosine similarity alignment loss with temperature.
+    """
+    soft_feats = torch.stack(list(soft_feats), dim=0)  # [Q, D]
+    hard_feats = torch.stack(list(hard_feats), dim=0)  # [B, D]
+    soft_feats = F.normalize(soft_feats, dim=1)
+    hard_feats = F.normalize(hard_feats, dim=1)
+
+    cos_sim = (soft_feats * hard_feats).sum(dim=1)
+
+  
+    loss = ((1 - cos_sim) ).mean()
+
+    return loss
+
+
+
+
+def get_bbox_feature(embedding_map, bbox, stride=16, pooling='avg'):
+    """
+    Extract a feature vector from an embedding map given a bounding box.
     
-    num_insts = len(pseudo_label)
-    num_points = cfg.num_points
-    for coord_grp, lbl_grp in zip(coords, lbls):
-        for coord, lbl in zip(coord_grp, lbl_grp):  
-            if lbl.item() == 1:  
-                selected_coords.append(coord.tolist())
+    Args:
+        embedding_map (torch.Tensor): Shape (C, H_feat, W_feat) or (B, C, H_feat, W_feat)
+        bbox (list or torch.Tensor): [x1, y1, x2, y2] in original image coordinates
+        stride (int): Downscaling factor between image and feature map
+        pooling (str): 'avg' or 'max' pooling inside the bbox region
+        
+    Returns:
+        torch.Tensor: Feature vector of shape (C,)
+    """
+    # If batch dimension exists, assume batch size 1
+    if embedding_map.dim() == 4:
+        embedding_map = embedding_map[0]
 
-    # Downsample coordinates (SAM's stride is 16)
-    coords = [[int(c // 16) for c in pair] for pair in selected_coords]
+    C, H_feat, W_feat = embedding_map.shape
+    x1, y1, x2, y2 = bbox
 
-    embed = embed.permute(1, 2, 0)  # [H, W, C]
+    # Map bbox to feature map coordinates
+    fx1 = max(int(x1 / stride), 0)
+    fy1 = max(int(y1 / stride), 0)
+    fx2 = min(int((x2 + stride - 1) / stride), W_feat)  # ceil division
+    fy2 = min(int((y2 + stride - 1) / stride), H_feat)
 
-    pos_pts = [] 
+    # Crop the feature map to bbox region
+    region = embedding_map[:, fy1:fy2, fx1:fx2]
 
-    for index in range(0, num_insts * num_points, num_points):
-        index = random.randint(0, num_points - 1)
-        x, y = coords[index]
-        pos_pt = embed[x, y]
-        pos_pts.append(pos_pt)
+    if region.numel() == 0:
+        # fallback to global feature if bbox is too small
+        region = embedding_map
 
-    predict_feats = torch.stack(pos_pts, dim=0)
+    # Pool to get a single feature vector
+    if pooling == 'avg':
+        feature_vec = region.mean(dim=(1,2))
+    elif pooling == 'max':
+        feature_vec = region.amax(dim=(1,2))
+    else:
+        raise ValueError("pooling must be 'avg' or 'max'")
 
-    return predict_feats
+    return feature_vec
 
 
-def offline_prototypes_generation(cfg, model, loader):
-    model.eval()
-    pts = []
-    max_iters = 128 
-    num_points = cfg.num_points
 
-    with torch.no_grad():
-        for i, batch in enumerate(tqdm(loader, desc='Generating target prototypes', ncols=100)):
-            if i >= max_iters: 
+
+def create_entropy_mask(entropy_maps, threshold=0.5, device='cuda'):
+    """
+    Create a mask to reduce learning from high entropy regions.
+    
+    Args:
+        entropy_maps: List of entropy maps for each instance
+        threshold: Entropy threshold above which to mask out regions
+        device: Device to place the mask on
+    
+    Returns:
+        List of entropy masks (0 for high entropy, 1 for low entropy)
+    """
+    entropy_masks = []
+    
+    for entropy_map in entropy_maps:
+        # Create binary mask: 1 for low entropy, 0 for high entropy
+        entropy_mask = (entropy_map < threshold).float()
+        entropy_masks.append(entropy_mask)
+    
+    return entropy_masks
+
+
+
+def save_incremental_by_image_name(out_dir, img_path, tag, img):
+    """
+    Saves incrementally:
+    <name>_<tag>.jpg
+    <name>_<tag>_2.jpg
+    <name>_<tag>_3.jpg ...
+    """
+    base = os.path.splitext(os.path.basename(img_path))[0]
+
+    # base file name
+    file_path = os.path.join(out_dir, f"{base}_{tag}.jpg")
+
+    # if exists → find next index
+    if os.path.exists(file_path):
+        idx = 2
+        while True:
+            new_path = os.path.join(out_dir, f"{base}_{tag}_{idx}.jpg")
+            if not os.path.exists(new_path):
+                file_path = new_path
                 break
-            imgs, boxes, masks, _ = batch
-            prompts = get_prompts(cfg, boxes, masks)
+            idx += 1
 
-            embeds, masks, _, _ = model(imgs, prompts) 
-            del _
-
-            if isinstance(embeds, dict):
-                embeds = embeds['vision_features'] 
-
-            for embed, prompt, mask in zip(embeds, prompts, masks):
-                num_insts = len(mask)
-                embed = embed.permute(1, 2, 0)  # [H, W, C]
-                coords = []
-
-                points, labels = prompt
-                for point_grp, label_grp in zip(points, labels):
-                    for point, label in zip(point_grp, label_grp): 
-                        if label.item() == 1:  
-                            coords.append(point.tolist())
-
-                # 16 is the stride of SAM
-                coords = [[int(pt / 16) for pt in pair] for pair in coords]
-                for index in range(0, num_insts*num_points, num_points):
-                    x, y = coords[index]
-                    pt = embed[x,y]
-                    pts.append(pt)
-
-    fin = FINCH(verbose=True)
-    pts = torch.stack(pts).cpu().numpy()
-    res = fin.fit(pts)
-
-    last_key = list(res.partitions.keys())[-1]
-    pt_stats = {'target_pts': res.partitions[last_key]['cluster_centers']}
-    return pt_stats
+    # save the image
+    cv2.imwrite(file_path, img)
 
 
 
+def draw_bbox(img, bbox, color=(0,255,0), thickness=2):
+    x1, y1, x2, y2 = map(int, bbox)
+    img = cv2.rectangle(img.copy(), (x1,y1), (x2,y2), color, thickness)
+    return img
+
+def save_analyze_images(
+    img_paths,
+    gt_masks,
+    pred_stack,
+    soft_masks,
+    bboxes,
+    out_dir
+):
+    os.makedirs(out_dir, exist_ok=True)
+
+    img_path = img_paths[0]
+    base_name = os.path.splitext(os.path.basename(img_path))[0]
+
+    # ------------------------------------------
+    # Load original image
+    # ------------------------------------------
+    img = cv2.imread(img_path)
+    if img is None:
+        print("Could not load:", img_path)
+        return
+
+    H, W = img.shape[:2]
+
+    # ------------------------------------------
+    # Save original image (overwrite, no incremental)
+    # ------------------------------------------
+    cv2.imwrite(f"{out_dir}/{base_name}_orig.jpg", img)
+
+    # ------------------------------------------
+    # Save GT mask (overwrite, no incremental)
+    # ------------------------------------------
+    if gt_masks.ndim == 4:
+        merged_gt = gt_masks[0].sum(dim=0)
+    else:
+        merged_gt = gt_masks[0]
+
+    gt = (merged_gt.detach().cpu().numpy() * 255).astype(np.uint8)
+    cv2.imwrite(f"{out_dir}/{base_name}_gt.jpg", gt)
+
+    # -----------------------------------------------------
+    # Save pred_stack merged mask (INCREMENTAL)
+    # -----------------------------------------------------
+    preds = pred_stack.detach().cpu().numpy()  # [N,1,H,W]
+    preds = preds.squeeze(1)                   # [N,H,W]
+
+    merged_pred = (preds.sum(axis=0) > 0.5).astype(np.uint8) * 255
+    save_incremental_by_image_name(out_dir, img_path, "pred", merged_pred)
+
+    # -----------------------------------------------------
+    # Build pseudo mask from soft_masks (INCREMENTAL)
+    # -----------------------------------------------------
+
+    soft_masks = torch.sigmoid(torch.stack(soft_masks, dim=0))
+    soft_masks = soft_masks[0].detach().cpu().numpy()     # [N,1,H,W]                         # [N,H,W]
+
+    merged_masks = soft_masks.sum(axis=0)
+    merged_masks = (merged_masks > 0.5).astype(np.uint8) * 255
 
 
-
-from PIL import Image
-import os
-import matplotlib.pyplot as plt
-import matplotlib.cm as cm
-from PIL import Image, ImageDraw
-
-def save_uncertanity_mask(cfg, model, loader):
-    model.eval()
-    pts = []
-    num_points = cfg.num_points
-
-
-    save_dir = "temp_test"
-    # make save directory
-    if not os.path.exists(save_dir):
-        os.makedirs(save_dir)
-
-    with torch.no_grad():
-        for i, batch in enumerate(tqdm(loader, desc='Generating target prototypes', ncols=100)):
-            
-            imgs, boxes, masks, _ = batch
-            prompts = get_prompts(cfg, boxes, masks)
-
-            embeds, masks_pred, _, _ = model(imgs, prompts) 
-            del _
-
-            p = masks_pred[0].clamp(1e-6, 1 - 1e-6)
-
-            print(prompts[0][0].shape)
-      
-
-            entropy_map = - (p * torch.log(p) + (1 - p) * torch.log(1 - p))
-            entropy_map = entropy_map.max(dim=0)[0]   # take pixel-wise max across instances → [B, H, W]
-            # print(entropy_map.shape)
-            # -----------------
-            # Save images
-            # -----------------
-            for b in range(imgs.shape[0]):
-                # Convert image tensor (C,H,W) → (H,W,C)
-                img_np = (imgs[b].permute(1,2,0).cpu().numpy() * 255).astype(np.uint8)
-
-                # ===== Ground Truth Mask =====
-                gt_mask = masks[b].cpu().numpy()   # [N, H, W]
-                if gt_mask.ndim == 3:
-                    gt_mask = np.max(gt_mask, axis=0) * 255   # merge all instances
-                gt_mask = gt_mask.astype(np.uint8)
-
-                # ===== Prediction Mask =====
-                pred_mask = masks_pred[b].cpu().numpy()   # [N, H, W]
-                if pred_mask.ndim == 3:
-                    pred_mask = np.max(pred_mask, axis=0)   
-                pred_mask = (pred_mask > 0.5).astype(np.uint8) * 255
-                pred_mask = pred_mask.astype(np.uint8)
-
-                # ===== Entropy Heatmap =====
-                entropy_np = entropy_map.cpu().numpy()
-                entropy_norm = (entropy_np - entropy_np.min()) / (entropy_np.max() - entropy_np.min() + 1e-6)
-                cmap = cm.get_cmap("viridis")
-                entropy_color = (cmap(entropy_norm)[:, :, :3] * 255).astype(np.uint8)
-                
-                # -----------------
-                # Overlay prompts on masks
-                # -----------------
-                gt_img = Image.fromarray(gt_mask).convert("RGB")
-                pred_img = Image.fromarray(pred_mask).convert("RGB")
-
-                draw_gt = ImageDraw.Draw(gt_img)
-                draw_pred = ImageDraw.Draw(pred_img)
-
-                # points[b] → torch.Size([num_points, 2, 2])
-                pts = prompts[0][0].cpu().numpy()  # [num_points, 2, 2]
-                for pnt in pts:
-                    x, y = pnt[0]   # first [x,y]
-                    label = int(pnt[1][0]) if pnt.shape[0] > 1 else 1  # assume label in second entry
-                    color = "green" if label == 1 else "red"
-                    r = 4
-                    draw_gt.ellipse((x-r, y-r, x+r, y+r), fill=color)
-                    draw_pred.ellipse((x-r, y-r, x+r, y+r), fill=color)
-
-                # Save outputs
-                Image.fromarray(img_np).save(os.path.join(save_dir, f"{i+1}.jpg"))         # original
-                gt_img.save(os.path.join(save_dir, f"{i+1}_gt.jpg"))                       # GT + points
-                pred_img.save(os.path.join(save_dir, f"{i+1}_pred.jpg"))                   # Pred + points
-                Image.fromarray(entropy_color).save(os.path.join(save_dir, f"{i+1}_en.jpg")) # entropy
-
-
-
-            # if i > 2:   # debugging stop
-            #     break
-
-
-            # print(masks[0].shape)
-
-            # print(masks_pred[0].shape)
-            # print(embeds.shape)
-
-            # if i > 2:
-
-            #     break
-
-
-            # if isinstance(embeds, dict):
-            #     embeds = embeds['vision_features'] 
-
-            # for embed, prompt, mask in zip(embeds, prompts, masks):
-            #     num_insts = len(mask)
-            #     embed = embed.permute(1, 2, 0)  # [H, W, C]
-            #     coords = []
-
-            #     points, labels = prompt
-            #     for point_grp, label_grp in zip(points, labels):
-            #         for point, label in zip(point_grp, label_grp): 
-            #             if label.item() == 1:  
-            #                 coords.append(point.tolist())
-
-            #     # 16 is the stride of SAM
-            #     coords = [[int(pt / 16) for pt in pair] for pair in coords]
-            #     for index in range(0, num_insts*num_points, num_points):
-            #         x, y = coords[index]
-            #         pt = embed[x,y]
-            #         pts.append(pt)
+    
+    save_incremental_by_image_name(out_dir, img_path, "pseudo_mask", merged_masks)
