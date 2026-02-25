@@ -8,6 +8,7 @@ config = {
     
     "batch_size": 1, #only support 1
     "val_batchsize": 1,
+    "num_workers": 0,
     "num_epochs": 10,
     "resume": False,
 
