@@ -170,10 +170,10 @@ def train_resam(cfg: Box, fabric: L.Fabric, model: Model, optimizer: _FabricOpti
                 # if confidence_map.mean() < 0.9:
                 #     continue
 
-                confidence_map = 1 - entropy_maps  # higher = more confident
+                confidence_map = (1 - entropy_maps).unsqueeze(1)  # higher = more confident
 
                 # Optionally, skip very uncertain masks first
-                keep_mask = confidence_map.unsqueeze(1).mean(dim=[1,2]) >= 0.8  # per-instance mean
+                keep_mask = confidence_map.mean(dim=[1,2]) >= 0.8  # per-instance mean
 
                 pred_stack_filtered = pred_stack[keep_mask]
                 confidence_map_filtered = confidence_map[keep_mask]
