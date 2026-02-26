@@ -294,32 +294,34 @@ analyze = False
 #                 sim_losses.update(loss_sim.item(), batch_size)
             
 
-#             if (iter + 1) % match_interval == 0:
-#                 fabric.print(
-#                     f"Epoch [{epoch}] Iter [{iter + 1}/{len(train_dataloader)}] "
-#                     f"| Time {batch_time.avg:.2f}s | Focal {focal_losses.avg:.4f} | Dice {dice_losses.avg:.4f} | "
-#                     f"IoU {iou_losses.avg:.4f} | SSA_loss {sim_losses.avg:.4f} | Total {total_losses.avg:.4f}"
-#                 )
+            # if (iter + 1) % match_interval == 0:
+            #     fabric.print(
+            #         f"Epoch [{epoch}] Iter [{iter + 1}/{len(train_dataloader)}] "
+            #         f"| Time {batch_time.avg:.2f}s | Focal {focal_losses.avg:.4f} | Dice {dice_losses.avg:.4f} | "
+            #         f"IoU {iou_losses.avg:.4f} | SSA_loss {sim_losses.avg:.4f} | Total {total_losses.avg:.4f}"
+            #     )
 
-#             if (iter + 1) % eval_interval == 0:
+            # if (iter + 1) % eval_interval == 0:
                 
-#                 avg_means, _ = validate(fabric, cfg, model, val_dataloader, cfg.name, epoch)
-#                 best_state = copy.deepcopy(model.state_dict())
-#                 torch.save(best_state, os.path.join(cfg.out_dir, "save", "best_model.pth"))
-#                 status = "Model Saved"
-#                 with open(csv_path, "a", newline="") as f:
-#                     writer = csv.writer(f)
-#                     writer.writerow([epoch, iter + 1, avg_means, status])
-#                 avg_mem = sum(iter_mem_usage) / len(iter_mem_usage)
-#                 print(f"Average Memory {avg_mem:.2f} GB")
-#                 fabric.print(f"Validation IoU={avg_means:.4f}  | {status}")
+            #     avg_means, _ = validate(fabric, cfg, model, val_dataloader, cfg.name, epoch)
+            #     best_state = copy.deepcopy(model.state_dict())
+            #     torch.save(best_state, os.path.join(cfg.out_dir, "save", "best_model.pth"))
+            #     status = "Model Saved"
+            #     with open(csv_path, "a", newline="") as f:
+            #         writer = csv.writer(f)
+            #         writer.writerow([epoch, iter + 1, avg_means, status])
+            #     avg_mem = sum(iter_mem_usage) / len(iter_mem_usage)
+            #     print(f"Average Memory {avg_mem:.2f} GB")
+            #     fabric.print(f"Validation IoU={avg_means:.4f}  | {status}")
 
-#                 if analyze:
-#                     iou_diff_tensor = torch.tensor(iou_diff_list)
-#                     num_positive = (iou_diff_tensor > 0).sum().item()
-#                     num_negative = (iou_diff_tensor < 0).sum().item()
-#                     percent_improved = 100 * num_positive / (num_positive + num_negative + 1e-8)
-#                     print(f"Percentage of mask improved (pred_stack vs soft_mask): {percent_improved:.2f}%")
+            #     if analyze:
+            #         iou_diff_tensor = torch.tensor(iou_diff_list)
+            #         num_positive = (iou_diff_tensor > 0).sum().item()
+            #         num_negative = (iou_diff_tensor < 0).sum().item()
+            #         percent_improved = 100 * num_positive / (num_positive + num_negative + 1e-8)
+            #         print(f"Percentage of mask improved (pred_stack vs soft_mask): {percent_improved:.2f}%")
+
+
 
 
 def train_resam(
@@ -330,46 +332,41 @@ def train_resam(
     scheduler: _FabricOptimizer,
     train_dataloader: DataLoader,
     val_dataloader: DataLoader,
+    init_iou,
 ):
 
     watcher = LossWatcher(window=50, factor=4)
+    # collected = sort_entropy_(model, target_pts)
     focal_loss = FocalLoss()
     dice_loss = DiceLoss()
+    best_ent = init_iou
     best_state = copy.deepcopy(model.state_dict())
     no_improve_count = 0
-    max_patience = cfg.get("patience", 3)
+    max_patience = cfg.get("patience", 3)  # stop if no improvement for X validations
     match_interval = cfg.match_interval
-    eval_interval = len(train_dataloader)
+    eval_interval = int(len(train_dataloader) * 1)
 
-    # embedding_queue = []
-    iter_mem_usage = []
+    window_size = 30
 
+    embedding_queue = []
+    ite_em = 0
+
+    # Prepare output dirs
     os.makedirs(os.path.join(cfg.out_dir, "save"), exist_ok=True)
     csv_path = os.path.join(cfg.out_dir, "training_log.csv")
 
+    # Initialize CSV
     with open(csv_path, "w", newline="") as f:
         writer = csv.writer(f)
-        writer.writerow(["Epoch", "Iteration", "Val_IoU", "Status"])
+        writer.writerow(["Epoch", "Iteration", "Val_ent", "Best_ent", "Status"])
 
-    fabric.print(f"Training enabled. Logging to: {csv_path}")
+    fabric.print(f"Training with rollback enabled. Logging to: {csv_path}")
+
+    entropy_means = deque(maxlen=len(train_dataloader))
+
+    # overlap_ratios = []
 
     eps = 1e-8
-    # entropy_means = deque(maxlen=len(train_dataloader))
-    step_size = 50
-    if analyze:
-        iou_diff_list=[]
-        # Select N random samples from the dataset
-        N = 50   # number you want
-        dataset = train_dataloader.dataset
-
-        random_indices = random.sample(range(len(dataset)), N)
-        analyze_img_paths = []
-
-        for idx in random_indices:
-            item = dataset[idx]
-            img_path = item[-1]  # last element is image path
-            analyze_img_paths.append(img_path)
-
     for epoch in range(1, cfg.num_epochs + 1):
         batch_time = AverageMeter()
         data_time = AverageMeter()
@@ -377,14 +374,21 @@ def train_resam(
         dice_losses = AverageMeter()
         iou_losses = AverageMeter()
         total_losses = AverageMeter()
-        sim_losses = AverageMeter()
+        match_losses = AverageMeter()
         end = time.time()
+        sim_losses = AverageMeter()
+        num_iter = len(train_dataloader)
+        entropy_means.clear()
+
+
 
         for iter, data in enumerate(train_dataloader):
             
             data_time.update(time.time() - end)
             images_weak, images_strong, bboxes, gt_masks, img_paths= data
             del data
+
+            
             step_size = 50
             for j in range(0, len(gt_masks[0]), step_size):
                 
@@ -405,9 +409,16 @@ def train_resam(
                 overlap_map = (overlap_count > 1).float()
                 invert_overlap_map = 1.0 - overlap_map
 
+                
+
+
                 bboxes = []
+                point_list = []
+                point_labels_list = []
                 for i,  (pred, ent) in enumerate( zip(pred_binary, entropy_maps)):
-     
+                    point_coords = prompts[0][0][i][:].unsqueeze(0)
+                    point_coords_lab = prompts[0][1][i][:].unsqueeze(0)
+
                     pred_w_overlap = ((pred[0]*invert_overlap_map[0]  ) )#    * ((1 - 0.1 * ent[0]))
                     ys, xs = torch.where(pred_w_overlap > 0.5)
                     if len(xs) > 0 and len(ys) > 0:
@@ -416,16 +427,27 @@ def train_resam(
 
                         bboxes.append(torch.tensor([x_min, y_min , x_max, y_max], dtype=torch.float32))
 
+                        point_list.append(point_coords)
+                        point_labels_list.append(point_coords_lab)
+                    
                 if len(bboxes) == 0:
                     continue  # skip if no valid region
 
-             
+                point_ = torch.cat(point_list).squeeze(1)
+                point_labels_ = torch.cat(point_labels_list)
+                new_prompts = [(point_, point_labels_)]
+
                 bboxes = torch.stack(bboxes)
 
                 with torch.no_grad():
                     embeddings, soft_masks, _, _ = model(images_weak, bboxes.unsqueeze(0))
 
-        
+                sof_mask_prob = torch.sigmoid(torch.stack(soft_masks, dim=0))
+                entropy_sm = - (sof_mask_prob * torch.log(sof_mask_prob + eps) + (1 - sof_mask_prob) * torch.log(1 - sof_mask_prob + eps))
+
+                entropy_means.append(entropy_sm.detach().mean().cpu().item())
+
+
                 _, pred_masks, iou_predictions, _= model(images_strong, prompts)
                 del _
 
@@ -443,7 +465,15 @@ def train_resam(
                         zip(pred_masks[0], soft_masks[0], iou_predictions[0], bboxes  )
                     ):
                         soft_mask = (soft_mask > 0.).float()
-                      
+                        # print(overlap_map.shape, pred_mask.shape, soft_mask.shape)
+                        # pred_mask = pred_mask * invert_overlap_map[0]
+                        # soft_mask = soft_mask * invert_overlap_map[0]
+                        
+                        # plt.imshow(pred_mask.detach().cpu().numpy(), cmap='viridis')
+                        # plt.show()
+                        # plt.imshow(soft_mask.detach().cpu().numpy(), cmap='viridis')
+                        # plt.show()
+                        # Apply entropy mask to losses
                         loss_focal += focal_loss(pred_mask, soft_mask)  #, entropy_mask=entropy_mask
                         loss_dice += dice_loss(pred_mask, soft_mask)   #, entropy_mask=entropy_mask
                         batch_iou = calc_iou(pred_mask.unsqueeze(0), soft_mask.unsqueeze(0))
@@ -458,7 +488,7 @@ def train_resam(
                 loss_sim  = loss_sim
              
 
-                loss_total =  (20 * loss_focal +  loss_dice  + loss_iou    )
+                loss_total =  (20 * loss_focal +  loss_dice  + loss_iou    )#      )#+ 
                 if watcher.is_outlier(loss_total):
                     continue
                 fabric.backward(loss_total)
@@ -468,9 +498,6 @@ def train_resam(
                 optimizer.zero_grad()
                 torch.cuda.empty_cache()
                 del  prompts, soft_masks
-
-                curr_mem = torch.cuda.memory_allocated() / 1024**3
-                iter_mem_usage.append(curr_mem)
 
                 batch_time.update(time.time() - end)
                 end = time.time()
@@ -482,34 +509,30 @@ def train_resam(
                 sim_losses.update(loss_sim.item(), batch_size)
             
 
-            if (iter + 1) % match_interval == 0:
+            if (iter+1) % match_interval==0:
+         
                 fabric.print(
-                    f"Epoch [{epoch}] Iter [{iter + 1}/{len(train_dataloader)}] "
-                    f"| Time {batch_time.avg:.2f}s | Focal {focal_losses.avg:.4f} | Dice {dice_losses.avg:.4f} | "
-                    f"IoU {iou_losses.avg:.4f} | SSA_loss {sim_losses.avg:.4f} | Total {total_losses.avg:.4f}"
+                    f"Epoch [{epoch}] Iter [{iter + 1}/{len(train_dataloader)}] " f"| Time {batch_time.avg:.2f}s "
+                    f"| Focal {focal_losses.avg:.4f} | Dice {dice_losses.avg:.4f} | "
+                    f"IoU {iou_losses.avg:.4f} | Sim_loss {sim_losses.avg:.4f} | Total {total_losses.avg:.4f}"
                 )
-
-            if (iter + 1) % eval_interval == 0:
-                
+            if (iter+1) % eval_interval == 0:
                 avg_means, _ = validate(fabric, cfg, model, val_dataloader, cfg.name, epoch)
+                # avg_means = sum(entropy_means) / len(entropy_means)
+                status = ""
                 best_state = copy.deepcopy(model.state_dict())
                 torch.save(best_state, os.path.join(cfg.out_dir, "save", "best_model.pth"))
-                status = "Model Saved"
+                status = "Improved → Model Saved"
+            
+
+                # Write log entry
                 with open(csv_path, "a", newline="") as f:
                     writer = csv.writer(f)
-                    writer.writerow([epoch, iter + 1, avg_means, status])
-                avg_mem = sum(iter_mem_usage) / len(iter_mem_usage)
-                print(f"Average Memory {avg_mem:.2f} GB")
-                fabric.print(f"Validation IoU={avg_means:.4f}  | {status}")
+                    writer.writerow([epoch, iter + 1, avg_means, best_ent, status])
 
-                if analyze:
-                    iou_diff_tensor = torch.tensor(iou_diff_list)
-                    num_positive = (iou_diff_tensor > 0).sum().item()
-                    num_negative = (iou_diff_tensor < 0).sum().item()
-                    percent_improved = 100 * num_positive / (num_positive + num_negative + 1e-8)
-                    print(f"Percentage of mask improved (pred_stack vs soft_mask): {percent_improved:.2f}%")
+                fabric.print(f"Validation IoU={avg_means:.4f} | Best={best_ent:.4f} | {status}")
 
-
+        
 
 
 
@@ -575,14 +598,14 @@ def main(cfg: Box) -> int:
     model, optimizer = fabric.setup(model, optimizer)
 
 
-    # print('-'*100)
-    # print('\033[92mDirect test on the original SAM.\033[0m') 
-    # init_iou, _, = validate(fabric, cfg, model, val_data, name=cfg.name, epoch=0)
-    # print('-'*100)
-    # del _     
+    print('-'*100)
+    print('\033[92mDirect test on the original SAM.\033[0m') 
+    init_iou, _, = validate(fabric, cfg, model, val_data, name=cfg.name, epoch=0)
+    print('-'*100)
+    del _     
 
     
-    train_resam(cfg, fabric, model, optimizer, scheduler, train_data, val_data)
+    train_resam(cfg, fabric, model, optimizer, scheduler, train_data, val_data,0)
 
     del model, train_data, val_data
 
