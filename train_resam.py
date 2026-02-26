@@ -157,43 +157,17 @@ def train_resam(cfg: Box, fabric: L.Fabric, model: Model, optimizer: _FabricOpti
 
 
                 
-                # confidence_map = 1 - entropy_maps  # higher is more confident
+                confidence_map = 1 - entropy_maps  # higher is more confident
+                pred_binary = (pred_stack * confidence_map > 0.3).float()
 
-                # print(confidence_map.shape)
-                # pred_binary = (pred_stack * confidence_map > 0.3).float()
-
-                # # pred_binary = (((1 - entropy_maps) * (pred_stack)) > 0.5) .float()
-                # overlap_count = pred_binary.sum(dim=0)
-                # overlap_map = (overlap_count > 1).float()
-                # invert_overlap_map = 1.0 - overlap_map
-
-                # if confidence_map.mean() < 0.9:
-                #     continue
-
-                # confidence map: higher = more confident
-                confidence_map = 1 - entropy_maps  # [N,1,H,W]
-                confidence_map_squeezed = confidence_map.squeeze(1)  # [N,H,W]
-
-                # compute per-instance mean confidence
-                mean_conf = confidence_map_squeezed.view(confidence_map_squeezed.shape[0], -1).mean(dim=1)
-
-                # compute fraction of high entropy pixels per instance
-                high_frac = (confidence_map_squeezed < 0.4).float().mean(dim=[1,2])  # pixels with low confidence
-
-                # only keep instances with high mean confidence and low high-entropy fraction
-                keep_mask = (mean_conf >= 0.8) & (high_frac < 0.4)
-
-                # filter predictions and confidence maps
-                pred_stack_filtered = pred_stack[keep_mask]
-                confidence_map_filtered = confidence_map_squeezed[keep_mask]
-
-                # threshold to get binary masks
-                pred_binary = (pred_stack_filtered * confidence_map_filtered > 0.3).float()
-
-                # optional: compute overlap map
+                # pred_binary = (((1 - entropy_maps) * (pred_stack)) > 0.5) .float()
                 overlap_count = pred_binary.sum(dim=0)
                 overlap_map = (overlap_count > 1).float()
                 invert_overlap_map = 1.0 - overlap_map
+
+                if confidence_map.mean() < 0.9:
+                    continue
+
 
                 bboxes = []
 
