@@ -155,7 +155,7 @@ def train_resam(cfg: Box, fabric: L.Fabric, model: Model, optimizer: _FabricOpti
                 pred_stack = torch.stack(preds, dim=0)
                 entropy_maps = torch.stack(entropy_maps, dim=0)
 
-                pred_binary = (((1 - entropy_maps) * (pred_stack)) > 0.3) .float()
+                pred_binary = (((1 - entropy_maps) * (pred_stack)) > 0.5) .float()
                 overlap_count = pred_binary.sum(dim=0)
                 overlap_map = (overlap_count > 1).float()
                 invert_overlap_map = 1.0 - overlap_map
