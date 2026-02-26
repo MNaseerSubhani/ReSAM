@@ -500,7 +500,6 @@ def train_resam(
                 torch.save(best_state, os.path.join(cfg.out_dir, "save", "best_model.pth"))
                 status = "Improved → Model Saved"
             
-
                 # Write log entry
                 with open(csv_path, "a", newline="") as f:
                     writer = csv.writer(f)
