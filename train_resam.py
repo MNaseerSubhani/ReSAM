@@ -332,14 +332,13 @@ def train_resam(
     scheduler: _FabricOptimizer,
     train_dataloader: DataLoader,
     val_dataloader: DataLoader,
-    init_iou,
+    
 ):
 
     watcher = LossWatcher(window=50, factor=4)
     # collected = sort_entropy_(model, target_pts)
     focal_loss = FocalLoss()
     dice_loss = DiceLoss()
-    best_ent = init_iou
     best_state = copy.deepcopy(model.state_dict())
     no_improve_count = 0
     max_patience = cfg.get("patience", 3)  # stop if no improvement for X validations
@@ -349,6 +348,7 @@ def train_resam(
     window_size = 30
 
     embedding_queue = []
+    iter_mem_usage = []
     ite_em = 0
 
     # Prepare output dirs
@@ -358,7 +358,7 @@ def train_resam(
     # Initialize CSV
     with open(csv_path, "w", newline="") as f:
         writer = csv.writer(f)
-        writer.writerow(["Epoch", "Iteration", "Val_ent", "Best_ent", "Status"])
+        writer.writerow(["Epoch", "Iteration", "Val_ent", "Status"])
 
     fabric.print(f"Training with rollback enabled. Logging to: {csv_path}")
 
@@ -475,6 +475,9 @@ def train_resam(
                 torch.cuda.empty_cache()
                 del  prompts, soft_masks
 
+                curr_mem = torch.cuda.memory_allocated() / 1024**3
+                iter_mem_usage.append(curr_mem)
+
                 batch_time.update(time.time() - end)
                 end = time.time()
 
@@ -485,29 +488,35 @@ def train_resam(
                 sim_losses.update(loss_sim.item(), batch_size)
             
 
-            if (iter+1) % match_interval==0:
-         
+            
+            
+
+            if (iter + 1) % match_interval == 0:
                 fabric.print(
-                    f"Epoch [{epoch}] Iter [{iter + 1}/{len(train_dataloader)}] " f"| Time {batch_time.avg:.2f}s "
-                    f"| Focal {focal_losses.avg:.4f} | Dice {dice_losses.avg:.4f} | "
-                    f"IoU {iou_losses.avg:.4f} | Sim_loss {sim_losses.avg:.4f} | Total {total_losses.avg:.4f}"
+                    f"Epoch [{epoch}] Iter [{iter + 1}/{len(train_dataloader)}] "
+                    f"| Time {batch_time.avg:.2f}s | Focal {focal_losses.avg:.4f} | Dice {dice_losses.avg:.4f} | "
+                    f"IoU {iou_losses.avg:.4f} | SSA_loss {sim_losses.avg:.4f} | Total {total_losses.avg:.4f}"
                 )
-            if (iter+1) % eval_interval == 0:
+
+            if (iter + 1) % eval_interval == 0:
+                
                 avg_means, _ = validate(fabric, cfg, model, val_dataloader, cfg.name, epoch)
-                # avg_means = sum(entropy_means) / len(entropy_means)
-                status = ""
                 best_state = copy.deepcopy(model.state_dict())
                 torch.save(best_state, os.path.join(cfg.out_dir, "save", "best_model.pth"))
-                status = "Improved → Model Saved"
-            
-                # Write log entry
+                status = "Model Saved"
                 with open(csv_path, "a", newline="") as f:
                     writer = csv.writer(f)
-                    writer.writerow([epoch, iter + 1, avg_means, best_ent, status])
+                    writer.writerow([epoch, iter + 1, avg_means, status])
+                avg_mem = sum(iter_mem_usage) / len(iter_mem_usage)
+                print(f"Average Memory {avg_mem:.2f} GB")
+                fabric.print(f"Validation IoU={avg_means:.4f}  | {status}")
 
-                fabric.print(f"Validation IoU={avg_means:.4f} | Best={best_ent:.4f} | {status}")
-
-        
+                if analyze:
+                    iou_diff_tensor = torch.tensor(iou_diff_list)
+                    num_positive = (iou_diff_tensor > 0).sum().item()
+                    num_negative = (iou_diff_tensor < 0).sum().item()
+                    percent_improved = 100 * num_positive / (num_positive + num_negative + 1e-8)
+                    print(f"Percentage of mask improved (pred_stack vs soft_mask): {percent_improved:.2f}%")
 
 
 
