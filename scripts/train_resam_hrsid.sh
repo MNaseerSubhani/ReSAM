@@ -2,7 +2,7 @@
 cfg_file="configs.config_hrsid"
 prompt="point"
 load_type="soft"
-num_points_list=(1)
+num_points_list=(1 2 3)
 output_dirs=("work_dir/hrsid/resam")
 
 for output_dir in "${output_dirs[@]}"; do
