@@ -324,7 +324,6 @@ analyze = False
 
 
 
-
 def train_resam(
     cfg: Box,
     fabric: L.Fabric,
@@ -351,7 +350,6 @@ def train_resam(
 
     embedding_queue = []
     ite_em = 0
-    iter_mem_usage =0
 
     # Prepare output dirs
     os.makedirs(os.path.join(cfg.out_dir, "save"), exist_ok=True)
@@ -415,9 +413,12 @@ def train_resam(
 
 
                 bboxes = []
-    
+                point_list = []
+                point_labels_list = []
                 for i,  (pred, ent) in enumerate( zip(pred_binary, entropy_maps)):
-                   
+                    point_coords = prompts[0][0][i][:].unsqueeze(0)
+                    point_coords_lab = prompts[0][1][i][:].unsqueeze(0)
+
                     pred_w_overlap = ((pred[0]*invert_overlap_map[0]  ) )#    * ((1 - 0.1 * ent[0]))
                     ys, xs = torch.where(pred_w_overlap > 0.5)
                     if len(xs) > 0 and len(ys) > 0:
@@ -426,18 +427,28 @@ def train_resam(
 
                         bboxes.append(torch.tensor([x_min, y_min , x_max, y_max], dtype=torch.float32))
 
+                        point_list.append(point_coords)
+                        point_labels_list.append(point_coords_lab)
                     
                 if len(bboxes) == 0:
                     continue  # skip if no valid region
+
+                point_ = torch.cat(point_list).squeeze(1)
+                point_labels_ = torch.cat(point_labels_list)
+                new_prompts = [(point_, point_labels_)]
 
                 bboxes = torch.stack(bboxes)
 
                 with torch.no_grad():
                     embeddings, soft_masks, _, _ = model(images_weak, bboxes.unsqueeze(0))
 
-               
+                sof_mask_prob = torch.sigmoid(torch.stack(soft_masks, dim=0))
+                entropy_sm = - (sof_mask_prob * torch.log(sof_mask_prob + eps) + (1 - sof_mask_prob) * torch.log(1 - sof_mask_prob + eps))
 
-                hard_embeddings, pred_masks, iou_predictions, _= model(images_strong, prompts)
+                entropy_means.append(entropy_sm.detach().mean().cpu().item())
+
+
+                _, pred_masks, iou_predictions, _= model(images_strong, prompts)
                 del _
 
                 num_masks = sum(len(pred_mask) for pred_mask in pred_masks)
@@ -447,13 +458,43 @@ def train_resam(
                 loss_sim = torch.tensor(0., device=fabric.device)
 
 
-               
+                batch_feats = []  # collect all bbox features in current image
+
+
+
+                for bbox in bboxes:
+                    feat = get_bbox_feature(embeddings, bbox)
+                    batch_feats.append(feat)
+
+                if len(batch_feats) > 0:
+                 
+                    batch_feats = F.normalize(torch.stack(batch_feats, dim=0), dim=1)
+                    loss_sim = similarity_loss(feature_queue , feature_queue)
+
+                    if loss_sim == -1:
+                        loss_sim = torch.tensor(0., device=batch_feats.device)
+              
+                    # add new features to queue (detach to avoid backprop)
+                    for f in batch_feats:
+                        feature_queue.append(f.detach())
+                else:
+                    loss_sim = torch.tensor(0., device=embeddings.device)
+
+        
 
                 for i, (pred_mask, soft_mask, iou_prediction, bbox) in enumerate(
                         zip(pred_masks[0], soft_masks[0], iou_predictions[0], bboxes  )
                     ):
                         soft_mask = (soft_mask > 0.).float()
-                       
+                        # print(overlap_map.shape, pred_mask.shape, soft_mask.shape)
+                        # pred_mask = pred_mask * invert_overlap_map[0]
+                        # soft_mask = soft_mask * invert_overlap_map[0]
+                        
+                        # plt.imshow(pred_mask.detach().cpu().numpy(), cmap='viridis')
+                        # plt.show()
+                        # plt.imshow(soft_mask.detach().cpu().numpy(), cmap='viridis')
+                        # plt.show()
+                        # Apply entropy mask to losses
                         loss_focal += focal_loss(pred_mask, soft_mask)  #, entropy_mask=entropy_mask
                         loss_dice += dice_loss(pred_mask, soft_mask)   #, entropy_mask=entropy_mask
                         batch_iou = calc_iou(pred_mask.unsqueeze(0), soft_mask.unsqueeze(0))
@@ -468,7 +509,7 @@ def train_resam(
                 loss_sim  = loss_sim
              
 
-                loss_total =  (20 * loss_focal +  loss_dice  + loss_iou   )#      )#+ 
+                loss_total =  (20 * loss_focal +  loss_dice  + loss_iou  +0.1*loss_sim   )#      )#+ 
                 if watcher.is_outlier(loss_total):
                     continue
                 fabric.backward(loss_total)
@@ -489,33 +530,30 @@ def train_resam(
                 sim_losses.update(loss_sim.item(), batch_size)
             
 
-            if (iter + 1) % match_interval == 0:
+            if (iter+1) % match_interval==0:
+         
                 fabric.print(
-                    f"Epoch [{epoch}] Iter [{iter + 1}/{len(train_dataloader)}] "
-                    f"| Time {batch_time.avg:.2f}s | Focal {focal_losses.avg:.4f} | Dice {dice_losses.avg:.4f} | "
-                    f"IoU {iou_losses.avg:.4f} | SSA_loss {sim_losses.avg:.4f} | Total {total_losses.avg:.4f}"
+                    f"Epoch [{epoch}] Iter [{iter + 1}/{len(train_dataloader)}] " f"| Time {batch_time.avg:.2f}s "
+                    f"| Focal {focal_losses.avg:.4f} | Dice {dice_losses.avg:.4f} | "
+                    f"IoU {iou_losses.avg:.4f} | Sim_loss {sim_losses.avg:.4f} | Total {total_losses.avg:.4f}"
                 )
-
-            if (iter + 1) % eval_interval == 0:
-                
+            if (iter+1) % eval_interval == 0:
                 avg_means, _ = validate(fabric, cfg, model, val_dataloader, cfg.name, epoch)
+                # avg_means = sum(entropy_means) / len(entropy_means)
+                status = ""
                 best_state = copy.deepcopy(model.state_dict())
                 torch.save(best_state, os.path.join(cfg.out_dir, "save", "best_model.pth"))
-                status = "Model Saved"
+                status = "Improved → Model Saved"
+            
+
+                # Write log entry
                 with open(csv_path, "a", newline="") as f:
                     writer = csv.writer(f)
-                    writer.writerow([epoch, iter + 1, avg_means, status])
-                avg_mem = sum(iter_mem_usage) / len(iter_mem_usage)
-                print(f"Average Memory {avg_mem:.2f} GB")
-                fabric.print(f"Validation IoU={avg_means:.4f}  | {status}")
+                    writer.writerow([epoch, iter + 1, avg_means, best_ent, status])
 
-                if analyze:
-                    iou_diff_tensor = torch.tensor(iou_diff_list)
-                    num_positive = (iou_diff_tensor > 0).sum().item()
-                    num_negative = (iou_diff_tensor < 0).sum().item()
-                    percent_improved = 100 * num_positive / (num_positive + num_negative + 1e-8)
-                    print(f"Percentage of mask improved (pred_stack vs soft_mask): {percent_improved:.2f}%")
+                fabric.print(f"Validation IoU={avg_means:.4f} | Best={best_ent:.4f} | {status}")
 
+        
 
 
 
