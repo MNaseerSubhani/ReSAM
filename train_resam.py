@@ -380,8 +380,6 @@ def train_sam(
         num_iter = len(train_dataloader)
         entropy_means.clear()
 
-
-
         for iter, data in enumerate(train_dataloader):
             
             data_time.update(time.time() - end)
@@ -391,7 +389,6 @@ def train_sam(
             
             step_size = 50
             for j in range(0, len(gt_masks[0]), step_size):
-                
                 
                 gt_masks_new = gt_masks[0][j:j+step_size].unsqueeze(0)
                 prompts = get_prompts(cfg, bboxes, gt_masks_new)
@@ -409,9 +406,6 @@ def train_sam(
                 overlap_map = (overlap_count > 1).float()
                 invert_overlap_map = 1.0 - overlap_map
 
-                
-
-
                 bboxes = []
          
                 for i,  (pred, ent) in enumerate( zip(pred_binary, entropy_maps)):
@@ -425,8 +419,6 @@ def train_sam(
 
                         bboxes.append(torch.tensor([x_min, y_min , x_max, y_max], dtype=torch.float32))
 
-              
-                    
                 if len(bboxes) == 0:
                     continue  # skip if no valid region
 
