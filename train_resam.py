@@ -157,20 +157,34 @@ def train_resam(cfg: Box, fabric: L.Fabric, model: Model, optimizer: _FabricOpti
 
 
                 
-                confidence_map = 1 - entropy_maps  # higher is more confident
+                # confidence_map = 1 - entropy_maps  # higher is more confident
 
-                print(confidence_map.shape)
-                pred_binary = (pred_stack * confidence_map > 0.3).float()
+                # print(confidence_map.shape)
+                # pred_binary = (pred_stack * confidence_map > 0.3).float()
 
-                # pred_binary = (((1 - entropy_maps) * (pred_stack)) > 0.5) .float()
+                # # pred_binary = (((1 - entropy_maps) * (pred_stack)) > 0.5) .float()
+                # overlap_count = pred_binary.sum(dim=0)
+                # overlap_map = (overlap_count > 1).float()
+                # invert_overlap_map = 1.0 - overlap_map
+
+                # if confidence_map.mean() < 0.9:
+                #     continue
+
+                confidence_map = 1 - entropy_maps  # higher = more confident
+
+                # Optionally, skip very uncertain masks first
+                keep_mask = confidence_map.unsqueeze(1).mean(dim=[1,2]) >= 0.8  # per-instance mean
+
+                pred_stack_filtered = pred_stack[keep_mask]
+                confidence_map_filtered = confidence_map[keep_mask]
+
+                # threshold to get binary masks
+                pred_binary = (pred_stack_filtered * confidence_map_filtered > 0.3).float()
+
+                # compute overlap map if needed
                 overlap_count = pred_binary.sum(dim=0)
                 overlap_map = (overlap_count > 1).float()
                 invert_overlap_map = 1.0 - overlap_map
-
-                if confidence_map.mean() < 0.9:
-                    continue
-
-
 
                 bboxes = []
 
