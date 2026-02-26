@@ -345,6 +345,7 @@ def train_resam(
     max_patience = cfg.get("patience", 3)  # stop if no improvement for X validations
     match_interval = cfg.match_interval
     eval_interval = int(len(train_dataloader) * 1)
+    iter_mem_usage = []
 
     window_size = 30
 
