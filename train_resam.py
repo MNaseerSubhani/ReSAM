@@ -437,7 +437,7 @@ def train_sam(
                     embeddings, soft_masks, _, _ = model(images_weak, bboxes.unsqueeze(0))
 
 
-                _, pred_masks, iou_predictions, _= model(images_strong, prompts)
+                hard_embeddings, pred_masks, iou_predictions, _= model(images_strong, prompts)
                 del _
 
                 num_masks = sum(len(pred_mask) for pred_mask in pred_masks)
@@ -447,29 +447,7 @@ def train_sam(
                 loss_sim = torch.tensor(0., device=fabric.device)
 
 
-                batch_feats = []  # collect all bbox features in current image
-
-
-
-                for bbox in bboxes:
-                    feat = get_bbox_feature(embeddings, bbox)
-                    batch_feats.append(feat)
-
-                if len(batch_feats) > 0:
-                 
-                    batch_feats = F.normalize(torch.stack(batch_feats, dim=0), dim=1)
-                    loss_sim = similarity_loss(feature_queue , feature_queue)
-
-                    if loss_sim == -1:
-                        loss_sim = torch.tensor(0., device=batch_feats.device)
-              
-                    # add new features to queue (detach to avoid backprop)
-                    for f in batch_feats:
-                        feature_queue.append(f.detach())
-                else:
-                    loss_sim = torch.tensor(0., device=embeddings.device)
-
-        
+                
 
                 for i, (pred_mask, soft_mask, iou_prediction, bbox) in enumerate(
                         zip(pred_masks[0], soft_masks[0], iou_predictions[0], bboxes  )
@@ -490,7 +468,7 @@ def train_sam(
                 loss_sim  = loss_sim
              
 
-                loss_total =  (20 * loss_focal +  loss_dice  + loss_iou  +0.1*loss_sim   )#      )#+ 
+                loss_total =  (20 * loss_focal +  loss_dice  + loss_iou    ) 
                 if watcher.is_outlier(loss_total):
                     continue
                 fabric.backward(loss_total)
