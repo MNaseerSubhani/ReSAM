@@ -426,7 +426,7 @@ def train_resam(
                     embeddings, soft_masks, _, _ = model(images_weak, bboxes.unsqueeze(0))
 
         
-                _, pred_masks, iou_predictions, _= model(images_strong, prompts)
+                hard_embeddings, pred_masks, iou_predictions, _= model(images_strong, prompts)
                 del _
 
                 num_masks = sum(len(pred_mask) for pred_mask in pred_masks)
@@ -438,7 +438,27 @@ def train_resam(
 
                
         
+                batch_feats = [get_bbox_feature(embeddings, bbox) for bbox in bboxes]
+                batch_feats_hard = [get_bbox_feature(hard_embeddings, bbox) for bbox in bboxes]
+            
+                
+                if len(feature_queue) == 32:
+                    batch_feats = F.normalize(torch.stack(batch_feats, dim=0), dim=1)
+                    batch_feats_hard = F.normalize(torch.stack(batch_feats_hard, dim=0), dim=1)
+                    loss_sim = similarity_loss(feature_queue_hard,feature_queue)
+                    loss_sim = torch.tensor(0., device=batch_feats.device) if loss_sim == -1 else loss_sim
+                    feature_queue.extend([f.detach() for f in batch_feats])
+                    feature_queue_hard.extend([f.detach() for f in batch_feats_hard])
+                else:
+                    batch_feats = F.normalize(torch.stack(batch_feats, dim=0), dim=1)
+                    batch_feats_hard = F.normalize(torch.stack(batch_feats_hard, dim=0), dim=1)
+                    feature_queue.extend([f.detach() for f in batch_feats])
+                    feature_queue_hard.extend([f.detach() for f in batch_feats_hard])
+                    
+                    loss_sim = torch.tensor(0., device=fabric.device)
 
+
+                batch_feats = []  
                 for i, (pred_mask, soft_mask, iou_prediction, bbox) in enumerate(
                         zip(pred_masks[0], soft_masks[0], iou_predictions[0], bboxes  )
                     ):
