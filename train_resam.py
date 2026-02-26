@@ -588,7 +588,7 @@ def main(cfg: Box) -> int:
     del _     
 
     
-    train_resam(cfg, fabric, model, optimizer, scheduler, train_data, val_data)
+    train_resam(cfg, fabric, model, optimizer, scheduler, train_data, val_data,0)
 
     del model, train_data, val_data
 
