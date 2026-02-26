@@ -409,16 +409,11 @@ def train_resam(
                 overlap_map = (overlap_count > 1).float()
                 invert_overlap_map = 1.0 - overlap_map
 
-                
-
-
                 bboxes = []
                 point_list = []
                 point_labels_list = []
                 for i,  (pred, ent) in enumerate( zip(pred_binary, entropy_maps)):
-                    point_coords = prompts[0][0][i][:].unsqueeze(0)
-                    point_coords_lab = prompts[0][1][i][:].unsqueeze(0)
-
+                   
                     pred_w_overlap = ((pred[0]*invert_overlap_map[0]  ) )#    * ((1 - 0.1 * ent[0]))
                     ys, xs = torch.where(pred_w_overlap > 0.5)
                     if len(xs) > 0 and len(ys) > 0:
@@ -426,27 +421,16 @@ def train_resam(
                         y_min, y_max = ys.min().item(), ys.max().item()
 
                         bboxes.append(torch.tensor([x_min, y_min , x_max, y_max], dtype=torch.float32))
-
-                        point_list.append(point_coords)
-                        point_labels_list.append(point_coords_lab)
-                    
+      
                 if len(bboxes) == 0:
                     continue  # skip if no valid region
-
-                point_ = torch.cat(point_list).squeeze(1)
-                point_labels_ = torch.cat(point_labels_list)
-                new_prompts = [(point_, point_labels_)]
 
                 bboxes = torch.stack(bboxes)
 
                 with torch.no_grad():
                     embeddings, soft_masks, _, _ = model(images_weak, bboxes.unsqueeze(0))
 
-                sof_mask_prob = torch.sigmoid(torch.stack(soft_masks, dim=0))
-                entropy_sm = - (sof_mask_prob * torch.log(sof_mask_prob + eps) + (1 - sof_mask_prob) * torch.log(1 - sof_mask_prob + eps))
-
-                entropy_means.append(entropy_sm.detach().mean().cpu().item())
-
+              
 
                 _, pred_masks, iou_predictions, _= model(images_strong, prompts)
                 del _
@@ -465,15 +449,7 @@ def train_resam(
                         zip(pred_masks[0], soft_masks[0], iou_predictions[0], bboxes  )
                     ):
                         soft_mask = (soft_mask > 0.).float()
-                        # print(overlap_map.shape, pred_mask.shape, soft_mask.shape)
-                        # pred_mask = pred_mask * invert_overlap_map[0]
-                        # soft_mask = soft_mask * invert_overlap_map[0]
-                        
-                        # plt.imshow(pred_mask.detach().cpu().numpy(), cmap='viridis')
-                        # plt.show()
-                        # plt.imshow(soft_mask.detach().cpu().numpy(), cmap='viridis')
-                        # plt.show()
-                        # Apply entropy mask to losses
+                  
                         loss_focal += focal_loss(pred_mask, soft_mask)  #, entropy_mask=entropy_mask
                         loss_dice += dice_loss(pred_mask, soft_mask)   #, entropy_mask=entropy_mask
                         batch_iou = calc_iou(pred_mask.unsqueeze(0), soft_mask.unsqueeze(0))
