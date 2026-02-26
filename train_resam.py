@@ -330,14 +330,12 @@ def train_resam(
     scheduler: _FabricOptimizer,
     train_dataloader: DataLoader,
     val_dataloader: DataLoader,
-    init_iou,
 ):
 
     watcher = LossWatcher(window=50, factor=4)
     # collected = sort_entropy_(model, target_pts)
     focal_loss = FocalLoss()
     dice_loss = DiceLoss()
-    best_ent = init_iou
     best_state = copy.deepcopy(model.state_dict())
     no_improve_count = 0
     max_patience = cfg.get("patience", 3)  # stop if no improvement for X validations
@@ -356,7 +354,7 @@ def train_resam(
     # Initialize CSV
     with open(csv_path, "w", newline="") as f:
         writer = csv.writer(f)
-        writer.writerow(["Epoch", "Iteration", "Val_ent", "Best_ent", "Status"])
+        writer.writerow(["Epoch", "Iteration", "Val_ent", "Status"])
 
     fabric.print(f"Training with rollback enabled. Logging to: {csv_path}")
 
@@ -385,8 +383,6 @@ def train_resam(
             data_time.update(time.time() - end)
             images_weak, images_strong, bboxes, gt_masks, img_paths= data
             del data
-
-            
             step_size = 50
             for j in range(0, len(gt_masks[0]), step_size):
                 
@@ -407,9 +403,6 @@ def train_resam(
                 overlap_map = (overlap_count > 1).float()
                 invert_overlap_map = 1.0 - overlap_map
 
-                
-
-
                 bboxes = []
                 for i,  (pred, ent) in enumerate( zip(pred_binary, entropy_maps)):
      
@@ -421,8 +414,6 @@ def train_resam(
 
                         bboxes.append(torch.tensor([x_min, y_min , x_max, y_max], dtype=torch.float32))
 
-              
-                    
                 if len(bboxes) == 0:
                     continue  # skip if no valid region
 
@@ -465,7 +456,7 @@ def train_resam(
                 loss_sim  = loss_sim
              
 
-                loss_total =  (20 * loss_focal +  loss_dice  + loss_iou    )#      )#+ 
+                loss_total =  (20 * loss_focal +  loss_dice  + loss_iou    )
                 if watcher.is_outlier(loss_total):
                     continue
                 fabric.backward(loss_total)
@@ -486,39 +477,34 @@ def train_resam(
                 sim_losses.update(loss_sim.item(), batch_size)
             
 
-            if (iter+1) % match_interval==0:
-         
+            if (iter + 1) % match_interval == 0:
                 fabric.print(
-                    f"Epoch [{epoch}] Iter [{iter + 1}/{len(train_dataloader)}] " f"| Time {batch_time.avg:.2f}s "
-                    f"| Focal {focal_losses.avg:.4f} | Dice {dice_losses.avg:.4f} | "
-                    f"IoU {iou_losses.avg:.4f} | Sim_loss {sim_losses.avg:.4f} | Total {total_losses.avg:.4f}"
+                    f"Epoch [{epoch}] Iter [{iter + 1}/{len(train_dataloader)}] "
+                    f"| Time {batch_time.avg:.2f}s | Focal {focal_losses.avg:.4f} | Dice {dice_losses.avg:.4f} | "
+                    f"IoU {iou_losses.avg:.4f} | SSA_loss {sim_losses.avg:.4f} | Total {total_losses.avg:.4f}"
                 )
-            if (iter+1) % eval_interval == 0:
-                avg_means, _ = validate(fabric, cfg, model, val_dataloader, cfg.name, epoch)
-                # avg_means = sum(entropy_means) / len(entropy_means)
-                status = ""
-                if avg_means > 0:  #best_ent
-                    best_ent = avg_means
-                    best_state = copy.deepcopy(model.state_dict())
-                    torch.save(best_state, os.path.join(cfg.out_dir, "save", "best_model.pth"))
-                    status = "Improved → Model Saved"
-                    no_improve_count = 0
-                else:
-                    model.load_state_dict(best_state)
-                    no_improve_count += 1
-                    status = f"Rollback ({no_improve_count})"
 
-                # Write log entry
+            if (iter + 1) % eval_interval == 0:
+                
+                avg_means, _ = validate(fabric, cfg, model, val_dataloader, cfg.name, epoch)
+                best_state = copy.deepcopy(model.state_dict())
+                torch.save(best_state, os.path.join(cfg.out_dir, "save", "best_model.pth"))
+                status = "Model Saved"
                 with open(csv_path, "a", newline="") as f:
                     writer = csv.writer(f)
-                    writer.writerow([epoch, iter + 1, avg_means, best_ent, status])
+                    writer.writerow([epoch, iter + 1, avg_means, status])
+                avg_mem = sum(iter_mem_usage) / len(iter_mem_usage)
+                print(f"Average Memory {avg_mem:.2f} GB")
+                fabric.print(f"Validation IoU={avg_means:.4f}  | {status}")
 
-                fabric.print(f"Validation IoU={avg_means:.4f} | Best={best_ent:.4f} | {status}")
+                if analyze:
+                    iou_diff_tensor = torch.tensor(iou_diff_list)
+                    num_positive = (iou_diff_tensor > 0).sum().item()
+                    num_negative = (iou_diff_tensor < 0).sum().item()
+                    percent_improved = 100 * num_positive / (num_positive + num_negative + 1e-8)
+                    print(f"Percentage of mask improved (pred_stack vs soft_mask): {percent_improved:.2f}%")
 
-                # Stop if model fails to stabilize
-                if no_improve_count >= max_patience:
-                    fabric.print(f"Training stopped early after {no_improve_count} failed rollbacks.")
-                    return
+
 
 
 
