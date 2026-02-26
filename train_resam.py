@@ -158,7 +158,7 @@ def train_resam(cfg: Box, fabric: L.Fabric, model: Model, optimizer: _FabricOpti
 
                 
                 confidence_map = 1 - entropy_maps  # higher is more confident
-                threshold = confidence_map.mean(dim=[1,2]) * 0.8  # scale by instance mean confidence
+                threshold = confidence_map.mean() * 0.8  # scale by instance mean confidence
                 print(threshold)
                 pred_binary = (pred_stack * confidence_map > threshold).float()
 
