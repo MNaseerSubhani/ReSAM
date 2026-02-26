@@ -138,150 +138,154 @@ def train_resam(cfg: Box, fabric: L.Fabric, model: Model, optimizer: _FabricOpti
         for iter, data in enumerate(train_dataloader):
             
             data_time.update(time.time() - end)
-            images_weak, images_strong, bboxes, gt_masks_new, img_paths= data
+            images_weak, images_strong, bboxes, gt_masks, img_paths= data
             del data
 
-
-            prompts = get_prompts(cfg, bboxes, gt_masks_new)
-
-            batch_size = images_weak.size(0)
-
-            entropy_maps, preds = process_forward(images_weak, prompts, model)
-            
-            pred_stack = torch.stack(preds, dim=0)
-            entropy_maps = torch.stack(entropy_maps, dim=0)
-
-            pred_binary = (((1 - entropy_maps) * (pred_stack)) > 0.3) .float()
-            overlap_count = pred_binary.sum(dim=0)
-            overlap_map = (overlap_count > 1).float()
-            invert_overlap_map = 1.0 - overlap_map
+            step_size = 50
+            for j in range(0, len(gt_masks[0]), step_size):
+                gt_masks_new = gt_masks[0][j:j+step_size].unsqueeze(0)
 
 
-            bboxes = []
+                prompts = get_prompts(cfg, bboxes, gt_masks_new)
 
-            for i,  (pred, ent) in enumerate( zip(pred_binary, entropy_maps)):
-           
-                pred_w_overlap = ((pred[0]*invert_overlap_map[0]  ) )#    * ((1 - 0.1 * ent[0]))
-                ys, xs = torch.where(pred_w_overlap > 0.5)
-                if len(xs) > 0 and len(ys) > 0:
-                    x_min, x_max = xs.min().item(), xs.max().item()
-                    y_min, y_max = ys.min().item(), ys.max().item()
+                batch_size = images_weak.size(0)
 
-                    bboxes.append(torch.tensor([x_min, y_min , x_max, y_max], dtype=torch.float32))
-
+                entropy_maps, preds = process_forward(images_weak, prompts, model)
                 
-            if len(bboxes) == 0:
-                continue  # skip if no valid region
+                pred_stack = torch.stack(preds, dim=0)
+                entropy_maps = torch.stack(entropy_maps, dim=0)
 
-           
-
-            bboxes = torch.stack(bboxes)
-
-            with torch.no_grad():
-                embeddings, soft_masks, _, _ = model(images_weak, bboxes.unsqueeze(0))
+                pred_binary = (((1 - entropy_maps) * (pred_stack)) > 0.3) .float()
+                overlap_count = pred_binary.sum(dim=0)
+                overlap_map = (overlap_count > 1).float()
+                invert_overlap_map = 1.0 - overlap_map
 
 
-            hard_embeddings, pred_masks, iou_predictions, _= model(images_strong, prompts)
-            del _
+                bboxes = []
 
-            num_masks = sum(len(pred_mask) for pred_mask in pred_masks)
-            loss_focal = torch.tensor(0., device=fabric.device)
-            loss_dice = torch.tensor(0., device=fabric.device)
-            loss_iou = torch.tensor(0., device=fabric.device)
-            loss_sim = torch.tensor(0., device=fabric.device)
-
-            batch_feats = [get_bbox_feature(embeddings, bbox) for bbox in bboxes]
-            batch_feats_hard = [get_bbox_feature(hard_embeddings, bbox) for bbox in bboxes]
-        
+                for i,  (pred, ent) in enumerate( zip(pred_binary, entropy_maps)):
             
-            if len(feature_queue) == 32:
-                batch_feats = F.normalize(torch.stack(batch_feats, dim=0), dim=1)
-                batch_feats_hard = F.normalize(torch.stack(batch_feats_hard, dim=0), dim=1)
-                loss_sim = similarity_loss(feature_queue_hard,feature_queue)
-                loss_sim = torch.tensor(0., device=batch_feats.device) if loss_sim == -1 else loss_sim
-                feature_queue.extend([f.detach() for f in batch_feats])
-                feature_queue_hard.extend([f.detach() for f in batch_feats_hard])
-            else:
-                batch_feats = F.normalize(torch.stack(batch_feats, dim=0), dim=1)
-                batch_feats_hard = F.normalize(torch.stack(batch_feats_hard, dim=0), dim=1)
-                feature_queue.extend([f.detach() for f in batch_feats])
-                feature_queue_hard.extend([f.detach() for f in batch_feats_hard])
-                
+                    pred_w_overlap = ((pred[0]*invert_overlap_map[0]  ) )#    * ((1 - 0.1 * ent[0]))
+                    ys, xs = torch.where(pred_w_overlap > 0.5)
+                    if len(xs) > 0 and len(ys) > 0:
+                        x_min, x_max = xs.min().item(), xs.max().item()
+                        y_min, y_max = ys.min().item(), ys.max().item()
+
+                        bboxes.append(torch.tensor([x_min, y_min , x_max, y_max], dtype=torch.float32))
+
+                    
+                if len(bboxes) == 0:
+                    continue  # skip if no valid region
+
+            
+
+                bboxes = torch.stack(bboxes)
+
+                with torch.no_grad():
+                    embeddings, soft_masks, _, _ = model(images_weak, bboxes.unsqueeze(0))
+
+
+                hard_embeddings, pred_masks, iou_predictions, _= model(images_strong, prompts)
+                del _
+
+                num_masks = sum(len(pred_mask) for pred_mask in pred_masks)
+                loss_focal = torch.tensor(0., device=fabric.device)
+                loss_dice = torch.tensor(0., device=fabric.device)
+                loss_iou = torch.tensor(0., device=fabric.device)
                 loss_sim = torch.tensor(0., device=fabric.device)
 
-
-            batch_feats = []  
-
-            for i, (pred_mask, soft_mask, iou_prediction, bbox) in enumerate(
-                    zip(pred_masks[0], soft_masks[0], iou_predictions[0], bboxes  )
-                ):
-                    soft_mask = (soft_mask > 0.).float()
-                   
-                    loss_focal += focal_loss(pred_mask, soft_mask)  
-                    loss_dice += dice_loss(pred_mask, soft_mask)   
-                    batch_iou = calc_iou(pred_mask.unsqueeze(0), soft_mask.unsqueeze(0))
-                    loss_iou += F.mse_loss(iou_prediction.view(-1), batch_iou.view(-1), reduction='sum') / num_masks
-
-            del  pred_masks, iou_predictions 
-            del pred_stack, overlap_map, invert_overlap_map
-            torch.cuda.empty_cache()
-
-            if analyze:
-                gt_masks_bin = (gt_masks_new[0] > 0.5).float()
-                soft_masks_sig = torch.sigmoid(soft_masks[0])
-                soft_masks_sig = (soft_masks_sig > 0.5).float()
-
-                pred_stack_s  = pred_stack.squeeze(1)
-                pred_masks_sig = (pred_stack_s > 0.5).float()
-
-                if pred_masks_sig.shape[0] ==soft_masks_sig.shape[0]:
-                    iou_pred = calculate_iou(gt_masks_bin, pred_masks_sig).item()
-                    iou_soft = calculate_iou(gt_masks_bin, soft_masks_sig).item()
-
-                    # Difference: positive if pred_stack improves over soft_mask
-                    iou_diff = iou_soft - iou_pred
-                    iou_diff_list.append(iou_diff)
-
-            # loss_dist = loss_dist / num_masks
-            loss_dice = loss_dice / num_masks
-            loss_focal = loss_focal / num_masks
-            loss_sim  = loss_sim
+                batch_feats = [get_bbox_feature(embeddings, bbox) for bbox in bboxes]
+                batch_feats_hard = [get_bbox_feature(hard_embeddings, bbox) for bbox in bboxes]
             
+                
+                if len(feature_queue) == 32:
+                    batch_feats = F.normalize(torch.stack(batch_feats, dim=0), dim=1)
+                    batch_feats_hard = F.normalize(torch.stack(batch_feats_hard, dim=0), dim=1)
+                    loss_sim = similarity_loss(feature_queue_hard,feature_queue)
+                    loss_sim = torch.tensor(0., device=batch_feats.device) if loss_sim == -1 else loss_sim
+                    feature_queue.extend([f.detach() for f in batch_feats])
+                    feature_queue_hard.extend([f.detach() for f in batch_feats_hard])
+                else:
+                    batch_feats = F.normalize(torch.stack(batch_feats, dim=0), dim=1)
+                    batch_feats_hard = F.normalize(torch.stack(batch_feats_hard, dim=0), dim=1)
+                    feature_queue.extend([f.detach() for f in batch_feats])
+                    feature_queue_hard.extend([f.detach() for f in batch_feats_hard])
+                    
+                    loss_sim = torch.tensor(0., device=fabric.device)
 
-            loss_total =  (20 * loss_focal +  loss_dice  + loss_iou  + epoch*0.3*loss_sim)   
-            if watcher.is_outlier(loss_total):
-                continue
-            fabric.backward(loss_total)
 
-            if analyze:
-                if img_paths[0]  in analyze_img_paths:
-                    save_analyze_images(
-                        img_paths,                    
-                        gt_masks_new,  
-                        pred_stack, 
-                        soft_masks,                     
-                        bboxes,                     
-                        os.path.join(cfg.out_dir, "analyze")
-                    )
+                batch_feats = []  
 
-            optimizer.step()
-            scheduler.step()
-            optimizer.zero_grad()
-            torch.cuda.empty_cache()
-            del  prompts, soft_masks
+                for i, (pred_mask, soft_mask, iou_prediction, bbox) in enumerate(
+                        zip(pred_masks[0], soft_masks[0], iou_predictions[0], bboxes  )
+                    ):
+                        soft_mask = (soft_mask > 0.).float()
+                    
+                        loss_focal += focal_loss(pred_mask, soft_mask)  
+                        loss_dice += dice_loss(pred_mask, soft_mask)   
+                        batch_iou = calc_iou(pred_mask.unsqueeze(0), soft_mask.unsqueeze(0))
+                        loss_iou += F.mse_loss(iou_prediction.view(-1), batch_iou.view(-1), reduction='sum') / num_masks
 
-            curr_mem = torch.cuda.memory_allocated() / 1024**3
-            iter_mem_usage.append(curr_mem)
+                del  pred_masks, iou_predictions 
+                del pred_stack, overlap_map, invert_overlap_map
+                torch.cuda.empty_cache()
 
-            batch_time.update(time.time() - end)
-            end = time.time()
+                if analyze:
+                    gt_masks_bin = (gt_masks_new[0] > 0.5).float()
+                    soft_masks_sig = torch.sigmoid(soft_masks[0])
+                    soft_masks_sig = (soft_masks_sig > 0.5).float()
 
-            focal_losses.update(loss_focal.item(), batch_size)
-            dice_losses.update(loss_dice.item(), batch_size)
-            iou_losses.update(loss_iou.item(), batch_size)
-            total_losses.update(loss_total.item(), batch_size)
-            sim_losses.update(loss_sim.item(), batch_size)
-        
+                    pred_stack_s  = pred_stack.squeeze(1)
+                    pred_masks_sig = (pred_stack_s > 0.5).float()
+
+                    if pred_masks_sig.shape[0] ==soft_masks_sig.shape[0]:
+                        iou_pred = calculate_iou(gt_masks_bin, pred_masks_sig).item()
+                        iou_soft = calculate_iou(gt_masks_bin, soft_masks_sig).item()
+
+                        # Difference: positive if pred_stack improves over soft_mask
+                        iou_diff = iou_soft - iou_pred
+                        iou_diff_list.append(iou_diff)
+
+                # loss_dist = loss_dist / num_masks
+                loss_dice = loss_dice / num_masks
+                loss_focal = loss_focal / num_masks
+                loss_sim  = loss_sim
+                
+
+                loss_total =  (20 * loss_focal +  loss_dice  + loss_iou  + epoch*0.3*loss_sim)   
+                if watcher.is_outlier(loss_total):
+                    continue
+                fabric.backward(loss_total)
+
+                if analyze:
+                    if img_paths[0]  in analyze_img_paths:
+                        save_analyze_images(
+                            img_paths,                    
+                            gt_masks_new,  
+                            pred_stack, 
+                            soft_masks,                     
+                            bboxes,                     
+                            os.path.join(cfg.out_dir, "analyze")
+                        )
+
+                optimizer.step()
+                scheduler.step()
+                optimizer.zero_grad()
+                torch.cuda.empty_cache()
+                del  prompts, soft_masks
+
+                curr_mem = torch.cuda.memory_allocated() / 1024**3
+                iter_mem_usage.append(curr_mem)
+
+                batch_time.update(time.time() - end)
+                end = time.time()
+
+                focal_losses.update(loss_focal.item(), batch_size)
+                dice_losses.update(loss_dice.item(), batch_size)
+                iou_losses.update(loss_iou.item(), batch_size)
+                total_losses.update(loss_total.item(), batch_size)
+                sim_losses.update(loss_sim.item(), batch_size)
+            
 
             if (iter + 1) % match_interval == 0:
                 fabric.print(
