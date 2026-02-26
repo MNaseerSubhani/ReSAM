@@ -333,36 +333,43 @@ def train_resam(
 ):
 
     watcher = LossWatcher(window=50, factor=4)
-    # collected = sort_entropy_(model, target_pts)
     focal_loss = FocalLoss()
     dice_loss = DiceLoss()
     best_state = copy.deepcopy(model.state_dict())
     no_improve_count = 0
-    max_patience = cfg.get("patience", 3)  # stop if no improvement for X validations
+    max_patience = cfg.get("patience", 3)
     match_interval = cfg.match_interval
-    eval_interval = int(len(train_dataloader) * 1)
+    eval_interval = len(train_dataloader)
 
-    window_size = 30
+    # embedding_queue = []
+    iter_mem_usage = []
 
-    embedding_queue = []
-    ite_em = 0
-
-    # Prepare output dirs
     os.makedirs(os.path.join(cfg.out_dir, "save"), exist_ok=True)
     csv_path = os.path.join(cfg.out_dir, "training_log.csv")
 
-    # Initialize CSV
     with open(csv_path, "w", newline="") as f:
         writer = csv.writer(f)
-        writer.writerow(["Epoch", "Iteration", "Val_ent", "Status"])
+        writer.writerow(["Epoch", "Iteration", "Val_IoU", "Status"])
 
-    fabric.print(f"Training with rollback enabled. Logging to: {csv_path}")
-
-    entropy_means = deque(maxlen=len(train_dataloader))
-
-    # overlap_ratios = []
+    fabric.print(f"Training enabled. Logging to: {csv_path}")
 
     eps = 1e-8
+    # entropy_means = deque(maxlen=len(train_dataloader))
+    step_size = 50
+    if analyze:
+        iou_diff_list=[]
+        # Select N random samples from the dataset
+        N = 50   # number you want
+        dataset = train_dataloader.dataset
+
+        random_indices = random.sample(range(len(dataset)), N)
+        analyze_img_paths = []
+
+        for idx in random_indices:
+            item = dataset[idx]
+            img_path = item[-1]  # last element is image path
+            analyze_img_paths.append(img_path)
+
     for epoch in range(1, cfg.num_epochs + 1):
         batch_time = AverageMeter()
         data_time = AverageMeter()
@@ -370,13 +377,8 @@ def train_resam(
         dice_losses = AverageMeter()
         iou_losses = AverageMeter()
         total_losses = AverageMeter()
-        match_losses = AverageMeter()
-        end = time.time()
         sim_losses = AverageMeter()
-        num_iter = len(train_dataloader)
-        entropy_means.clear()
-
-
+        end = time.time()
 
         for iter, data in enumerate(train_dataloader):
             
@@ -466,6 +468,9 @@ def train_resam(
                 optimizer.zero_grad()
                 torch.cuda.empty_cache()
                 del  prompts, soft_masks
+
+                curr_mem = torch.cuda.memory_allocated() / 1024**3
+                iter_mem_usage.append(curr_mem)
 
                 batch_time.update(time.time() - end)
                 end = time.time()
