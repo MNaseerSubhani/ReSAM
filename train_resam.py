@@ -475,8 +475,8 @@ def train_resam(
                 torch.cuda.empty_cache()
                 del  prompts, soft_masks
 
-                # curr_mem = torch.cuda.memory_allocated() / 1024**3
-                # iter_mem_usage.append(curr_mem)
+                curr_mem = torch.cuda.memory_allocated() / 1024**3
+                iter_mem_usage.append(curr_mem)
 
                 batch_time.update(time.time() - end)
                 end = time.time()
@@ -503,20 +503,24 @@ def train_resam(
                 avg_means, _ = validate(fabric, cfg, model, val_dataloader, cfg.name, epoch)
                 best_state = copy.deepcopy(model.state_dict())
                 torch.save(best_state, os.path.join(cfg.out_dir, "save", "best_model.pth"))
-                status = "Model Saved"
-                with open(csv_path, "a", newline="") as f:
-                    writer = csv.writer(f)
-                    writer.writerow([epoch, iter + 1, avg_means, status])
-                # avg_mem = sum(iter_mem_usage) / len(iter_mem_usage)
-                # print(f"Average Memory {avg_mem:.2f} GB")
-                fabric.print(f"Validation IoU={avg_means:.4f}  | {status}")
 
-                if analyze:
-                    iou_diff_tensor = torch.tensor(iou_diff_list)
-                    num_positive = (iou_diff_tensor > 0).sum().item()
-                    num_negative = (iou_diff_tensor < 0).sum().item()
-                    percent_improved = 100 * num_positive / (num_positive + num_negative + 1e-8)
-                    print(f"Percentage of mask improved (pred_stack vs soft_mask): {percent_improved:.2f}%")
+                avg_mem = sum(iter_mem_usage) / len(iter_mem_usage)
+                print(f"Average Memory {avg_mem:.2f} GB")
+
+
+                # status = "Model Saved"
+                # with open(csv_path, "a", newline="") as f:
+                #     writer = csv.writer(f)
+                #     writer.writerow([epoch, iter + 1, avg_means, status])
+                
+                # fabric.print(f"Validation IoU={avg_means:.4f}  | {status}")
+
+                # if analyze:
+                #     iou_diff_tensor = torch.tensor(iou_diff_list)
+                #     num_positive = (iou_diff_tensor > 0).sum().item()
+                #     num_negative = (iou_diff_tensor < 0).sum().item()
+                #     percent_improved = 100 * num_positive / (num_positive + num_negative + 1e-8)
+                #     print(f"Percentage of mask improved (pred_stack vs soft_mask): {percent_improved:.2f}%")
 
 
 
