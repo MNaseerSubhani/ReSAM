@@ -507,8 +507,8 @@ def train_resam(
                 with open(csv_path, "a", newline="") as f:
                     writer = csv.writer(f)
                     writer.writerow([epoch, iter + 1, avg_means, status])
-                avg_mem = sum(iter_mem_usage) / len(iter_mem_usage)
-                print(f"Average Memory {avg_mem:.2f} GB")
+                # avg_mem = sum(iter_mem_usage) / len(iter_mem_usage)
+                # print(f"Average Memory {avg_mem:.2f} GB")
                 fabric.print(f"Validation IoU={avg_means:.4f}  | {status}")
 
                 if analyze:
