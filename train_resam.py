@@ -479,7 +479,7 @@ def train_resam(
                 loss_sim  = loss_sim
              
 
-                loss_total =  (20 * loss_focal +  loss_dice  + loss_iou  +0.1*loss_sim   )#      )#+ 
+                loss_total =  (20 * loss_focal +  loss_dice  + loss_iou     )#      )#+ 
                 if watcher.is_outlier(loss_total):
                     continue
                 fabric.backward(loss_total)
@@ -603,7 +603,7 @@ def main(cfg: Box) -> int:
     del _     
 
     
-    train_resam(cfg, fabric, model, optimizer, scheduler, train_data, val_data)
+    train_resam(cfg, fabric, model, optimizer, scheduler, train_data, val_data, 0)
 
     del model, train_data, val_data
 
