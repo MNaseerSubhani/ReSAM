@@ -323,7 +323,7 @@ analyze = False
 
 
 
-def train_sam(
+def train_resam(
     cfg: Box,
     fabric: L.Fabric,
     model: Model,
