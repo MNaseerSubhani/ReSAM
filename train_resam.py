@@ -323,7 +323,7 @@ analyze = False
 
 
 
-def train_resam(
+def train_sam(
     cfg: Box,
     fabric: L.Fabric,
     model: Model,
@@ -403,7 +403,7 @@ def train_resam(
                 entropy_maps = torch.stack(entropy_maps, dim=0)
 
                 # pred_binary = ((entropy_maps < 0.5) & (pred_stack > 0.5) ).float()
-                pred_binary = (pred_stack>0.7) .float()    #((1 - entropy_maps) * (pred_stack)) > 0.3
+                pred_binary = (((1 - entropy_maps) * (pred_stack)) > 0.3) .float()
                 overlap_count = pred_binary.sum(dim=0)
                 overlap_map = (overlap_count > 1).float()
                 invert_overlap_map = 1.0 - overlap_map
@@ -461,6 +461,9 @@ def train_resam(
 
 
 
+                
+
+        
 
                 for i, (pred_mask, soft_mask, iou_prediction, bbox) in enumerate(
                         zip(pred_masks[0], soft_masks[0], iou_predictions[0], bboxes  )
@@ -489,7 +492,7 @@ def train_resam(
                 loss_sim  = loss_sim
              
 
-                loss_total =  (20 * loss_focal +  loss_dice  + loss_iou     )#      )#+ 
+                loss_total =  (20 * loss_focal +  loss_dice  + loss_iou    )#      )#+ 
                 if watcher.is_outlier(loss_total):
                     continue
                 fabric.backward(loss_total)
@@ -543,7 +546,6 @@ def train_resam(
                 if no_improve_count >= max_patience:
                     fabric.print(f"Training stopped early after {no_improve_count} failed rollbacks.")
                     return
-
 
 
 
