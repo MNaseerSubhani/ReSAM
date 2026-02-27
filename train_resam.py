@@ -332,13 +332,14 @@ def train_resam(
     scheduler: _FabricOptimizer,
     train_dataloader: DataLoader,
     val_dataloader: DataLoader,
-    
+    init_iou,
 ):
 
     watcher = LossWatcher(window=50, factor=4)
     # collected = sort_entropy_(model, target_pts)
     focal_loss = FocalLoss()
     dice_loss = DiceLoss()
+    best_ent = init_iou
     best_state = copy.deepcopy(model.state_dict())
     no_improve_count = 0
     max_patience = cfg.get("patience", 3)  # stop if no improvement for X validations
@@ -348,7 +349,6 @@ def train_resam(
     window_size = 30
 
     embedding_queue = []
-    iter_mem_usage = []
     ite_em = 0
 
     # Prepare output dirs
@@ -358,7 +358,7 @@ def train_resam(
     # Initialize CSV
     with open(csv_path, "w", newline="") as f:
         writer = csv.writer(f)
-        writer.writerow(["Epoch", "Iteration", "Val_ent", "Status"])
+        writer.writerow(["Epoch", "Iteration", "Val_ent", "Best_ent", "Status"])
 
     fabric.print(f"Training with rollback enabled. Logging to: {csv_path}")
 
@@ -409,11 +409,16 @@ def train_resam(
                 overlap_map = (overlap_count > 1).float()
                 invert_overlap_map = 1.0 - overlap_map
 
+                
+
+
                 bboxes = []
                 point_list = []
                 point_labels_list = []
                 for i,  (pred, ent) in enumerate( zip(pred_binary, entropy_maps)):
-                   
+                    point_coords = prompts[0][0][i][:].unsqueeze(0)
+                    point_coords_lab = prompts[0][1][i][:].unsqueeze(0)
+
                     pred_w_overlap = ((pred[0]*invert_overlap_map[0]  ) )#    * ((1 - 0.1 * ent[0]))
                     ys, xs = torch.where(pred_w_overlap > 0.5)
                     if len(xs) > 0 and len(ys) > 0:
@@ -421,16 +426,27 @@ def train_resam(
                         y_min, y_max = ys.min().item(), ys.max().item()
 
                         bboxes.append(torch.tensor([x_min, y_min , x_max, y_max], dtype=torch.float32))
-      
+
+                        point_list.append(point_coords)
+                        point_labels_list.append(point_coords_lab)
+                    
                 if len(bboxes) == 0:
                     continue  # skip if no valid region
+
+                point_ = torch.cat(point_list).squeeze(1)
+                point_labels_ = torch.cat(point_labels_list)
+                new_prompts = [(point_, point_labels_)]
 
                 bboxes = torch.stack(bboxes)
 
                 with torch.no_grad():
                     embeddings, soft_masks, _, _ = model(images_weak, bboxes.unsqueeze(0))
 
-              
+                sof_mask_prob = torch.sigmoid(torch.stack(soft_masks, dim=0))
+                entropy_sm = - (sof_mask_prob * torch.log(sof_mask_prob + eps) + (1 - sof_mask_prob) * torch.log(1 - sof_mask_prob + eps))
+
+                entropy_means.append(entropy_sm.detach().mean().cpu().item())
+
 
                 _, pred_masks, iou_predictions, _= model(images_strong, prompts)
                 del _
@@ -442,14 +458,13 @@ def train_resam(
                 loss_sim = torch.tensor(0., device=fabric.device)
 
 
-               
-        
+                batch_feats = []  # collect all bbox features in current image
+
 
                 for i, (pred_mask, soft_mask, iou_prediction, bbox) in enumerate(
                         zip(pred_masks[0], soft_masks[0], iou_predictions[0], bboxes  )
                     ):
                         soft_mask = (soft_mask > 0.).float()
-                  
                         loss_focal += focal_loss(pred_mask, soft_mask)  #, entropy_mask=entropy_mask
                         loss_dice += dice_loss(pred_mask, soft_mask)   #, entropy_mask=entropy_mask
                         batch_iou = calc_iou(pred_mask.unsqueeze(0), soft_mask.unsqueeze(0))
@@ -464,7 +479,7 @@ def train_resam(
                 loss_sim  = loss_sim
              
 
-                loss_total =  (20 * loss_focal +  loss_dice  + loss_iou    )#      )#+ 
+                loss_total =  (20 * loss_focal +  loss_dice  + loss_iou  +0.1*loss_sim   )#      )#+ 
                 if watcher.is_outlier(loss_total):
                     continue
                 fabric.backward(loss_total)
@@ -474,9 +489,6 @@ def train_resam(
                 optimizer.zero_grad()
                 torch.cuda.empty_cache()
                 del  prompts, soft_masks
-
-                curr_mem = torch.cuda.memory_allocated() / 1024**3
-                iter_mem_usage.append(curr_mem)
 
                 batch_time.update(time.time() - end)
                 end = time.time()
@@ -488,41 +500,39 @@ def train_resam(
                 sim_losses.update(loss_sim.item(), batch_size)
             
 
-            
-            
-
-            if (iter + 1) % match_interval == 0:
+            if (iter+1) % match_interval==0:
+         
                 fabric.print(
-                    f"Epoch [{epoch}] Iter [{iter + 1}/{len(train_dataloader)}] "
-                    f"| Time {batch_time.avg:.2f}s | Focal {focal_losses.avg:.4f} | Dice {dice_losses.avg:.4f} | "
-                    f"IoU {iou_losses.avg:.4f} | SSA_loss {sim_losses.avg:.4f} | Total {total_losses.avg:.4f}"
+                    f"Epoch [{epoch}] Iter [{iter + 1}/{len(train_dataloader)}] " f"| Time {batch_time.avg:.2f}s "
+                    f"| Focal {focal_losses.avg:.4f} | Dice {dice_losses.avg:.4f} | "
+                    f"IoU {iou_losses.avg:.4f} | Sim_loss {sim_losses.avg:.4f} | Total {total_losses.avg:.4f}"
                 )
-
-            if (iter + 1) % eval_interval == 0:
-                
+            if (iter+1) % eval_interval == 0:
                 avg_means, _ = validate(fabric, cfg, model, val_dataloader, cfg.name, epoch)
-                best_state = copy.deepcopy(model.state_dict())
-                torch.save(best_state, os.path.join(cfg.out_dir, "save", "best_model.pth"))
+                # avg_means = sum(entropy_means) / len(entropy_means)
+                status = ""
+                if avg_means > 0:  #best_ent
+                    best_ent = avg_means
+                    best_state = copy.deepcopy(model.state_dict())
+                    torch.save(best_state, os.path.join(cfg.out_dir, "save", "best_model.pth"))
+                    status = "Improved → Model Saved"
+                    no_improve_count = 0
+                else:
+                    model.load_state_dict(best_state)
+                    no_improve_count += 1
+                    status = f"Rollback ({no_improve_count})"
 
-                avg_mem = sum(iter_mem_usage) / len(iter_mem_usage)
-                print(f"Average Memory {avg_mem:.2f} GB")
+                # Write log entry
+                with open(csv_path, "a", newline="") as f:
+                    writer = csv.writer(f)
+                    writer.writerow([epoch, iter + 1, avg_means, best_ent, status])
 
+                fabric.print(f"Validation IoU={avg_means:.4f} | Best={best_ent:.4f} | {status}")
 
-                # status = "Model Saved"
-                # with open(csv_path, "a", newline="") as f:
-                #     writer = csv.writer(f)
-                #     writer.writerow([epoch, iter + 1, avg_means, status])
-                
-                # fabric.print(f"Validation IoU={avg_means:.4f}  | {status}")
-
-                # if analyze:
-                #     iou_diff_tensor = torch.tensor(iou_diff_list)
-                #     num_positive = (iou_diff_tensor > 0).sum().item()
-                #     num_negative = (iou_diff_tensor < 0).sum().item()
-                #     percent_improved = 100 * num_positive / (num_positive + num_negative + 1e-8)
-                #     print(f"Percentage of mask improved (pred_stack vs soft_mask): {percent_improved:.2f}%")
-
-
+                # Stop if model fails to stabilize
+                if no_improve_count >= max_patience:
+                    fabric.print(f"Training stopped early after {no_improve_count} failed rollbacks.")
+                    return
 
 
 
