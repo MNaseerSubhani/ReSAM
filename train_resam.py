@@ -323,7 +323,6 @@ analyze = False
 
 
 
-
 def train_resam(
     cfg: Box,
     fabric: L.Fabric,
@@ -461,10 +460,40 @@ def train_resam(
                 batch_feats = []  # collect all bbox features in current image
 
 
+
+                for bbox in bboxes:
+                    feat = get_bbox_feature(embeddings, bbox)
+                    batch_feats.append(feat)
+
+                if len(batch_feats) > 0:
+                 
+                    batch_feats = F.normalize(torch.stack(batch_feats, dim=0), dim=1)
+                    loss_sim = similarity_loss(feature_queue , feature_queue)
+
+                    if loss_sim == -1:
+                        loss_sim = torch.tensor(0., device=batch_feats.device)
+              
+                    # add new features to queue (detach to avoid backprop)
+                    for f in batch_feats:
+                        feature_queue.append(f.detach())
+                else:
+                    loss_sim = torch.tensor(0., device=embeddings.device)
+
+        
+
                 for i, (pred_mask, soft_mask, iou_prediction, bbox) in enumerate(
                         zip(pred_masks[0], soft_masks[0], iou_predictions[0], bboxes  )
                     ):
                         soft_mask = (soft_mask > 0.).float()
+                        # print(overlap_map.shape, pred_mask.shape, soft_mask.shape)
+                        # pred_mask = pred_mask * invert_overlap_map[0]
+                        # soft_mask = soft_mask * invert_overlap_map[0]
+                        
+                        # plt.imshow(pred_mask.detach().cpu().numpy(), cmap='viridis')
+                        # plt.show()
+                        # plt.imshow(soft_mask.detach().cpu().numpy(), cmap='viridis')
+                        # plt.show()
+                        # Apply entropy mask to losses
                         loss_focal += focal_loss(pred_mask, soft_mask)  #, entropy_mask=entropy_mask
                         loss_dice += dice_loss(pred_mask, soft_mask)   #, entropy_mask=entropy_mask
                         batch_iou = calc_iou(pred_mask.unsqueeze(0), soft_mask.unsqueeze(0))
@@ -479,7 +508,7 @@ def train_resam(
                 loss_sim  = loss_sim
              
 
-                loss_total =  (20 * loss_focal +  loss_dice  + loss_iou     )#      )#+ 
+                loss_total =  (20 * loss_focal +  loss_dice  + loss_iou  +0.1*loss_sim   )#      )#+ 
                 if watcher.is_outlier(loss_total):
                     continue
                 fabric.backward(loss_total)
@@ -533,7 +562,6 @@ def train_resam(
                 if no_improve_count >= max_patience:
                     fabric.print(f"Training stopped early after {no_improve_count} failed rollbacks.")
                     return
-
 
 
 
