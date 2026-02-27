@@ -434,11 +434,7 @@ def train_resam(
                 with torch.no_grad():
                     embeddings, soft_masks, _, _ = model(images_weak, bboxes.unsqueeze(0))
 
-                sof_mask_prob = torch.sigmoid(torch.stack(soft_masks, dim=0))
-                entropy_sm = - (sof_mask_prob * torch.log(sof_mask_prob + eps) + (1 - sof_mask_prob) * torch.log(1 - sof_mask_prob + eps))
-
-                entropy_means.append(entropy_sm.detach().mean().cpu().item())
-
+           
 
                 hard_embeddings, pred_masks, iou_predictions, _= model(images_strong, prompts)
                 del _
