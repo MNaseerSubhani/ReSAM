@@ -156,7 +156,7 @@ def train_resam(cfg: Box, fabric: L.Fabric, model: Model, optimizer: _FabricOpti
                 entropy_maps = torch.stack(entropy_maps, dim=0)
 
 
-                
+                print("D")
                 confidence_map = 1 - entropy_maps  # higher is more confident
                 pred_binary = (pred_stack * confidence_map > 0.3).float()
 
