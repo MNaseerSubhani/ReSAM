@@ -378,11 +378,9 @@ def train_resam(
         dice_losses = AverageMeter()
         iou_losses = AverageMeter()
         total_losses = AverageMeter()
-        match_losses = AverageMeter()
-        end = time.time()
         sim_losses = AverageMeter()
-        num_iter = len(train_dataloader)
-        entropy_means.clear()
+        end = time.time()
+
 
 
 
