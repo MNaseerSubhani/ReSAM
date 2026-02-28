@@ -165,14 +165,7 @@ def train_resam(cfg: Box, fabric: L.Fabric, model: Model, optimizer: _FabricOpti
                 overlap_map = (overlap_count > 1).float()
                 invert_overlap_map = 1.0 - overlap_map
 
-                # mask for valid prediction area
-                valid_mask = (pred_stack >= 0.2).float()       # 1 = keep, 0 = ignore
-                masked_entropy = entropy_maps * valid_mask*overlap_map     # entropy outside area becomes 0
-                num_valid = valid_mask.sum(dim=[1,2,3]).clamp(min=1)
-                mean_entropys = (masked_entropy.sum(dim=[1,2,3]) / num_valid).mean()
-                if mean_entropys> 0.15:
-                    continue
-            
+      
 
 
                 bboxes = []
