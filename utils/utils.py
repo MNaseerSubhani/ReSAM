@@ -142,25 +142,23 @@ def get_prompts(cfg: Box, bboxes, gt_masks):
 
 def similarity_loss(hard_feats, soft_feats):
     """
-    Computes the mean Cosine Distance for paired features.
-    
-    soft_feats: [B, D]
-    hard_feats: [B, D]
+    hard_feats: collections.deque or torch.Tensor
+    soft_feats: collections.deque or torch.Tensor
     """
-    # 1. Normalize to unit vectors (Magnitude = 1)
+    # 1. Convert deques to tensors if necessary
+    if isinstance(soft_feats, collections.deque):
+        soft_feats = torch.stack(list(soft_feats), dim=0)
+    if isinstance(hard_feats, collections.deque):
+        hard_feats = torch.stack(list(hard_feats), dim=0)
+
+    # 2. Normalize (This is where your error was happening)
     soft_feats = F.normalize(soft_feats, p=2, dim=1)
     hard_feats = F.normalize(hard_feats, p=2, dim=1)
 
-    # 2. Element-wise product + Sum across features 
-    # This gives you the diagonal of the similarity matrix without computing the whole matrix.
-    # Result: [B]
+    # 3. Compute diagonal similarity
     cos_sim = (soft_feats * hard_feats).sum(dim=1)
 
-    # 3. Convert similarity to distance (1 is perfect, 0 is orthogonal)
-    # Mean reduction for a single scalar loss
-    loss = (1 - cos_sim).mean()
-
-    return loss
+    return (1 - cos_sim).mean()
 
 
 def get_bbox_feature(embedding_map, bbox, stride=16, pooling='avg'):
