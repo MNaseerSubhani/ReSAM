@@ -139,16 +139,28 @@ def get_prompts(cfg: Box, bboxes, gt_masks):
 
 #     return loss
 
+
 def similarity_loss(hard_feats, soft_feats):
-    # Ensure inputs are tensors (avoiding unnecessary list conversion if possible)
+    """
+    Computes the mean Cosine Distance for paired features.
+    
+    soft_feats: [B, D]
+    hard_feats: [B, D]
+    """
+    # 1. Normalize to unit vectors (Magnitude = 1)
     soft_feats = F.normalize(soft_feats, p=2, dim=1)
     hard_feats = F.normalize(hard_feats, p=2, dim=1)
 
-    # cos_sim will be 1.0 for perfect alignment
+    # 2. Element-wise product + Sum across features 
+    # This gives you the diagonal of the similarity matrix without computing the whole matrix.
+    # Result: [B]
     cos_sim = (soft_feats * hard_feats).sum(dim=1)
 
-    # Loss is 0 when sim is 1; loss is 2 when sim is -1
-    return (1 - cos_sim).mean()
+    # 3. Convert similarity to distance (1 is perfect, 0 is orthogonal)
+    # Mean reduction for a single scalar loss
+    loss = (1 - cos_sim).mean()
+
+    return loss
 
 
 def get_bbox_feature(embedding_map, bbox, stride=16, pooling='avg'):
