@@ -121,42 +121,26 @@ def get_prompts(cfg: Box, bboxes, gt_masks):
 
 
 
-# def similarity_loss(hard_feats,soft_feats):
-#     """
-#     soft_feats: [B, D]
-#     hard_feats: [B, D]
-#     Cosine similarity alignment loss with temperature.
-#     """
-#     soft_feats = torch.stack(list(soft_feats), dim=0)  # [Q, D]
-#     hard_feats = torch.stack(list(hard_feats), dim=0)  # [B, D]
-#     soft_feats = F.normalize(soft_feats, dim=1)
-#     hard_feats = F.normalize(hard_feats, dim=1)
-
-#     cos_sim = (soft_feats * hard_feats).sum(dim=1)
-
-  
-#     loss = ((1 - cos_sim) ).mean()
-
-#     return loss
-
-
-def similarity_loss(hard_feats, soft_feats):
+def similarity_loss(hard_feats,soft_feats):
     """
-    hard_feats: collections.deque or torch.Tensor
-    soft_feats: collections.deque or torch.Tensor
+    soft_feats: [B, D]
+    hard_feats: [B, D]
+    Cosine similarity alignment loss with temperature.
     """
-
     soft_feats = torch.stack(list(soft_feats), dim=0)  # [Q, D]
     hard_feats = torch.stack(list(hard_feats), dim=0)  # [B, D]
+    soft_feats = F.normalize(soft_feats, dim=1)
+    hard_feats = F.normalize(hard_feats, dim=1)
 
-    # 2. Normalize (This is where your error was happening)
-    soft_feats = F.normalize(soft_feats, p=2, dim=1)
-    hard_feats = F.normalize(hard_feats, p=2, dim=1)
-
-    # 3. Compute diagonal similarity
     cos_sim = (soft_feats * hard_feats).sum(dim=1)
 
-    return (1 - cos_sim).mean()
+  
+    loss = ((1 - cos_sim) ).mean()
+
+    return loss
+
+
+
 
 
 def get_bbox_feature(embedding_map, bbox, stride=16, pooling='avg'):
