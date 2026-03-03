@@ -121,25 +121,34 @@ def get_prompts(cfg: Box, bboxes, gt_masks):
 
 
 
-def similarity_loss(hard_feats,soft_feats):
-    """
-    soft_feats: [B, D]
-    hard_feats: [B, D]
-    Cosine similarity alignment loss with temperature.
-    """
-    soft_feats = torch.stack(list(soft_feats), dim=0)  # [Q, D]
-    hard_feats = torch.stack(list(hard_feats), dim=0)  # [B, D]
-    soft_feats = F.normalize(soft_feats, dim=1)
-    hard_feats = F.normalize(hard_feats, dim=1)
+# def similarity_loss(hard_feats,soft_feats):
+#     """
+#     soft_feats: [B, D]
+#     hard_feats: [B, D]
+#     Cosine similarity alignment loss with temperature.
+#     """
+#     soft_feats = torch.stack(list(soft_feats), dim=0)  # [Q, D]
+#     hard_feats = torch.stack(list(hard_feats), dim=0)  # [B, D]
+#     soft_feats = F.normalize(soft_feats, dim=1)
+#     hard_feats = F.normalize(hard_feats, dim=1)
 
-    cos_sim = (soft_feats * hard_feats).sum(dim=1)
+#     cos_sim = (soft_feats * hard_feats).sum(dim=1)
 
   
-    loss = ((1 - cos_sim) ).mean()
+#     loss = ((1 - cos_sim) ).mean()
 
-    return loss
+#     return loss
 
+def similarity_loss(hard_feats, soft_feats):
+    # Ensure inputs are tensors (avoiding unnecessary list conversion if possible)
+    soft_feats = F.normalize(soft_feats, p=2, dim=1)
+    hard_feats = F.normalize(hard_feats, p=2, dim=1)
 
+    # cos_sim will be 1.0 for perfect alignment
+    cos_sim = (soft_feats * hard_feats).sum(dim=1)
+
+    # Loss is 0 when sim is 1; loss is 2 when sim is -1
+    return (1 - cos_sim).mean()
 
 
 def get_bbox_feature(embedding_map, bbox, stride=16, pooling='avg'):
