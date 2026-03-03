@@ -145,11 +145,9 @@ def similarity_loss(hard_feats, soft_feats):
     hard_feats: collections.deque or torch.Tensor
     soft_feats: collections.deque or torch.Tensor
     """
-    # 1. Convert deques to tensors if necessary
-    if isinstance(soft_feats, collections.deque):
-        soft_feats = torch.stack(list(soft_feats), dim=0)
-    if isinstance(hard_feats, collections.deque):
-        hard_feats = torch.stack(list(hard_feats), dim=0)
+
+    soft_feats = torch.stack(list(soft_feats), dim=0)  # [Q, D]
+    hard_feats = torch.stack(list(hard_feats), dim=0)  # [B, D]
 
     # 2. Normalize (This is where your error was happening)
     soft_feats = F.normalize(soft_feats, p=2, dim=1)
