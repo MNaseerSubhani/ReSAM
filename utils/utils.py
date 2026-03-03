@@ -140,14 +140,14 @@ def get_prompts(cfg: Box, bboxes, gt_masks):
 #     return loss
 
 def similarity_loss(hard_feats, soft_feats):
-    # Ensure inputs are tensors (avoiding unnecessary list conversion if possible)
+    # Normalize to unit vectors
     soft_feats = F.normalize(soft_feats, p=2, dim=1)
     hard_feats = F.normalize(hard_feats, p=2, dim=1)
 
-    # cos_sim will be 1.0 for perfect alignment
-    cos_sim = (soft_feats * hard_feats).sum(dim=1)
+    # F.cosine_similarity defaults to dim=1 and returns only the "diagonal" pairs
+    cos_sim = F.cosine_similarity(soft_feats, hard_feats)
 
-    # Loss is 0 when sim is 1; loss is 2 when sim is -1
+    # Loss is 0 for perfect alignment (cos_sim = 1)
     return (1 - cos_sim).mean()
 
 
