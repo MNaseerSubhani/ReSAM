@@ -142,6 +142,7 @@ def similarity_loss(hard_feats,soft_feats):
 
 
 
+
 def get_bbox_feature(embedding_map, bbox, stride=16, pooling='avg'):
     """
     Extract a feature vector from an embedding map given a bounding box.
