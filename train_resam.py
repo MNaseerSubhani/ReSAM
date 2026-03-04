@@ -155,7 +155,7 @@ def train_resam(cfg: Box, fabric: L.Fabric, model: Model, optimizer: _FabricOpti
                 
                 pred_stack = torch.stack(preds, dim=0)
                 entropy_maps = torch.stack(entropy_maps, dim=0)
-                print(prompts.shape)
+                print(prompts[0].shape)
 
 
                 
