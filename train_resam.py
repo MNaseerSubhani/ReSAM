@@ -258,8 +258,8 @@ def train_resam(cfg: Box, fabric: L.Fabric, model: Model, optimizer: _FabricOpti
                 loss_focal = loss_focal / num_masks
                 loss_sim  = loss_sim
                 
-
-                loss_total =  (20 * loss_focal +  loss_dice  + loss_iou + (4/(1+torch.exp(-0.1*(epoch-((cfg.num_epochs + 1)/2)))))*loss_sim)   
+                beta = (4 / (1 + math.exp(-1.0 * (epoch - ((cfg.num_epochs + 1) / 2)))))
+                loss_total =  (20 * loss_focal +  loss_dice  + loss_iou + beta*loss_sim)   
 
                 if watcher.is_outlier(loss_total):
                     continue
