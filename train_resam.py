@@ -155,6 +155,7 @@ def train_resam(cfg: Box, fabric: L.Fabric, model: Model, optimizer: _FabricOpti
                 
                 pred_stack = torch.stack(preds, dim=0)
                 entropy_maps = torch.stack(entropy_maps, dim=0)
+                print(pred_stack.shape)
 
 
                 
@@ -185,8 +186,7 @@ def train_resam(cfg: Box, fabric: L.Fabric, model: Model, optimizer: _FabricOpti
                 if len(bboxes) == 0:
                     continue  # skip if no valid region
 
-            
-
+         
                 bboxes = torch.stack(bboxes)
 
                 with torch.no_grad():
