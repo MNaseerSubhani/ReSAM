@@ -159,7 +159,7 @@ def train_resam(cfg: Box, fabric: L.Fabric, model: Model, optimizer: _FabricOpti
             
                 
                 confidence_map = 1 - entropy_maps  # higher is more confident
-                pred_binary = ((pred_stack * confidence_map )> 0.1).float()
+                pred_binary = ((pred_stack * confidence_map )> 0.5).float()
 
           
                 overlap_count = pred_binary.sum(dim=0)
