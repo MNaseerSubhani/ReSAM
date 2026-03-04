@@ -136,9 +136,7 @@ def train_resam(cfg: Box, fabric: L.Fabric, model: Model, optimizer: _FabricOpti
         sim_losses = AverageMeter()
         end = time.time()
 
-        avg_means, _ = validate(fabric, cfg, model, val_dataloader, cfg.name, epoch)
-        print(avg_means)
-
+     
         for iter, data in enumerate(train_dataloader):
             
             data_time.update(time.time() - end)
@@ -161,7 +159,7 @@ def train_resam(cfg: Box, fabric: L.Fabric, model: Model, optimizer: _FabricOpti
             
                 
                 confidence_map = 1 - entropy_maps  # higher is more confident
-                pred_binary = ((pred_stack * confidence_map )> 0.3).float()
+                pred_binary = ((pred_stack * confidence_map )> 0.1).float()
 
           
                 overlap_count = pred_binary.sum(dim=0)
