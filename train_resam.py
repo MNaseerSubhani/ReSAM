@@ -158,10 +158,9 @@ def train_resam(cfg: Box, fabric: L.Fabric, model: Model, optimizer: _FabricOpti
                 entropy_maps = torch.stack(entropy_maps, dim=0)
             
                 
-                # compute per-image threshold
-                thresh = entropy_maps.mean(dim=(1,2,3), keepdim=True) - entropy_maps.std(dim=(1,2,3), keepdim=True)
+                
                 confidence_map = 1 - entropy_maps  # higher is more confident
-                pred_binary = ((pred_stack * confidence_map )> thresh.mean().squeeze()).float()
+                pred_binary = ((pred_stack * confidence_map )> 0.4).float()
 
           
                 overlap_count = pred_binary.sum(dim=0)
