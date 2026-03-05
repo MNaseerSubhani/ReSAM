@@ -161,7 +161,7 @@ def train_resam(cfg: Box, fabric: L.Fabric, model: Model, optimizer: _FabricOpti
                 # compute per-image threshold
                 thresh = entropy_maps.mean(dim=(1,2,3), keepdim=True) - entropy_maps.std(dim=(1,2,3), keepdim=True)
                 confidence_map = 1 - entropy_maps  # higher is more confident
-                pred_binary = ((pred_stack * confidence_map )> thresh.squeeze()).float()
+                pred_binary = ((pred_stack * confidence_map )> thresh.mean().squeeze()).float()
 
           
                 overlap_count = pred_binary.sum(dim=0)
