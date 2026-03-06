@@ -260,7 +260,7 @@ def train_resam(cfg: Box, fabric: L.Fabric, model: Model, optimizer: _FabricOpti
                 loss_sim  = loss_sim
                 
                 beta = (4 / (1 + math.exp(-1.0 * (epoch - ((cfg.num_epochs + 1) / 2)))))
-                loss_total =  (20 * loss_focal +  loss_dice  + loss_iou + 10*loss_sim)   
+                loss_total =  (20 * loss_focal +  loss_dice  + loss_iou )#+ 0.1*loss_sim)   
 
                 if watcher.is_outlier(loss_total):
                     continue
@@ -303,7 +303,7 @@ def train_resam(cfg: Box, fabric: L.Fabric, model: Model, optimizer: _FabricOpti
                     f"IoU {iou_losses.avg:.4f} | SSA_loss {sim_losses.avg:.4f} | Total {total_losses.avg:.4f}"
                 )
 
-            if (iter + 1) % eval_interval == 0:
+            if (iter + 1) % eval_interval == -1:
                 
                 avg_means, _ = validate(fabric, cfg, model, val_dataloader, cfg.name, epoch)
                 best_state = copy.deepcopy(model.state_dict())
