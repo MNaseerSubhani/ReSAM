@@ -71,7 +71,7 @@ def process_forward(img_tensor, prompt, model):
         entropy = - (p * torch.log(p + eps) + (1 - p) * torch.log(1 - p + eps))
         max_ent = torch.log(torch.tensor(2.0, device=mask_p.device))
         entropy_norm = entropy / (max_ent + 1e-8)   # [0, 1]
-        entropy_maps.append(entropy_norm)
+        entropy_maps.append(entropy)
         pred_ins.append(p)
 
     return entropy_maps, pred_ins
@@ -159,8 +159,8 @@ def train_resam(cfg: Box, fabric: L.Fabric, model: Model, optimizer: _FabricOpti
             
                 
                 
-                confidence_map = 1 - entropy_maps  # higher is more confident
-                pred_binary = ((pred_stack * confidence_map )> 0.3).float()
+                confidence_map = 0.69 - entropy_maps  # higher is more confident
+                pred_binary = ((pred_stack * confidence_map )> 0.2).float()
 
           
                 overlap_count = pred_binary.sum(dim=0)
@@ -175,7 +175,7 @@ def train_resam(cfg: Box, fabric: L.Fabric, model: Model, optimizer: _FabricOpti
                 for i,  (pred, ent) in enumerate( zip(pred_binary, entropy_maps)):
             
                     pred_w_overlap = ((pred[0]*invert_overlap_map[0]  ) )#    * ((1 - 0.1 * ent[0]))
-                    ys, xs = torch.where(pred_w_overlap > 0.3)
+                    ys, xs = torch.where(pred_w_overlap > 0.4)
                     if len(xs) > 0 and len(ys) > 0:
                         x_min, x_max = xs.min().item(), xs.max().item()
                         y_min, y_max = ys.min().item(), ys.max().item()
