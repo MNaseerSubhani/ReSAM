@@ -78,8 +78,9 @@ def process_forward(img_tensor, prompt, model):
         
 
 # persistent feature queue
-feature_queue = deque(maxlen=256)  # keep up to 512 previous object embeddings
-feature_queue_hard = deque(maxlen=256)
+que_len = 1024
+feature_queue = deque(maxlen=que_len)  # keep up to 512 previous object embeddings
+feature_queue_hard = deque(maxlen=que_len)
 
 
 
@@ -206,7 +207,7 @@ def train_resam(cfg: Box, fabric: L.Fabric, model: Model, optimizer: _FabricOpti
                 batch_feats_hard = [get_bbox_feature(hard_embeddings, bbox) for bbox in bboxes]
             
                 
-                if len(feature_queue) == 256:
+                if len(feature_queue) == que_len:
                     batch_feats = F.normalize(torch.stack(batch_feats, dim=0), dim=1)
                     batch_feats_hard = F.normalize(torch.stack(batch_feats_hard, dim=0), dim=1)
                     loss_sim = similarity_loss(feature_queue_hard,feature_queue)
