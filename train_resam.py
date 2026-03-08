@@ -89,7 +89,7 @@ analyze = False
 def train_resam(cfg: Box, fabric: L.Fabric, model: Model, optimizer: _FabricOptimizer,
               scheduler: _FabricOptimizer, train_dataloader: DataLoader, val_dataloader: DataLoader):
 
-    watcher = LossWatcher(window=50, factor=4)
+    watcher = LossWatcher(window=20, factor=4)
     focal_loss = FocalLoss()
     dice_loss = DiceLoss()
     best_state = copy.deepcopy(model.state_dict())
@@ -262,10 +262,10 @@ def train_resam(cfg: Box, fabric: L.Fabric, model: Model, optimizer: _FabricOpti
                 loss_sim  = loss_sim
                 
                 beta = (4 / (1 + math.exp(-1.0 * (epoch - ((cfg.num_epochs + 1) / 2)))))
-                loss_total =  (20 * loss_focal +  loss_dice  + loss_iou+ loss_sim)   
+                loss_total =  (20 * loss_focal +  loss_dice  + loss_iou)#+ loss_sim)   
 
-                # if watcher.is_outlier(loss_total):
-                #     continue
+                if watcher.is_outlier(loss_total):
+                    continue
                 fabric.backward(loss_total)
 
                 if analyze:
