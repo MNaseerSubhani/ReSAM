@@ -78,7 +78,7 @@ def process_forward(img_tensor, prompt, model):
         
 
 # persistent feature queue
-que_len = 1024
+que_len = 4096
 feature_queue = deque(maxlen=que_len)  # keep up to 512 previous object embeddings
 feature_queue_hard = deque(maxlen=que_len)
 
@@ -176,7 +176,7 @@ def train_resam(cfg: Box, fabric: L.Fabric, model: Model, optimizer: _FabricOpti
                 for i,  (pred, ent) in enumerate( zip(pred_binary, entropy_maps)):
             
                     pred_w_overlap = ((pred[0]*invert_overlap_map[0]  ) )#    * ((1 - 0.1 * ent[0]))
-                    ys, xs = torch.where(pred_w_overlap > 0.4)
+                    ys, xs = torch.where(pred_w_overlap > 0.5)
                     if len(xs) > 0 and len(ys) > 0:
                         x_min, x_max = xs.min().item(), xs.max().item()
                         y_min, y_max = ys.min().item(), ys.max().item()
