@@ -161,7 +161,8 @@ def train_resam(cfg: Box, fabric: L.Fabric, model: Model, optimizer: _FabricOpti
                 
                 
                 confidence_map = 1 - entropy_maps  # higher is more confident
-                pred_binary = ((pred_stack * confidence_map )> 0.1).float()
+                # pred_binary = ((pred_stack * confidence_map )> 0.3).float()
+                pred_binary = ((pred_stack  )> 0.7).float()
 
           
                 overlap_count = pred_binary.sum(dim=0)
@@ -261,7 +262,7 @@ def train_resam(cfg: Box, fabric: L.Fabric, model: Model, optimizer: _FabricOpti
                 loss_sim  = loss_sim
                 
                 beta = (4 / (1 + math.exp(-1.0 * (epoch - ((cfg.num_epochs + 1) / 2)))))
-                loss_total =  (20 * loss_focal +  loss_dice  + loss_iou+ 6*loss_sim)   
+                loss_total =  (20 * loss_focal +  loss_dice  + loss_iou)#+ 6*loss_sim)   
 
                 # if watcher.is_outlier(loss_total):
                 #     continue
