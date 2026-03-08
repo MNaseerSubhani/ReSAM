@@ -137,6 +137,12 @@ def train_resam(cfg: Box, fabric: L.Fabric, model: Model, optimizer: _FabricOpti
         sim_losses = AverageMeter()
         end = time.time()
 
+        # Create teacher as a copy of student model
+        teacher_model = copy.deepcopy(model)
+        teacher_model.eval()  # teacher is not trained via gradients
+        for p in teacher_model.parameters():
+            p.requires_grad = False
+
      
         for iter, data in enumerate(train_dataloader):
             
@@ -153,7 +159,7 @@ def train_resam(cfg: Box, fabric: L.Fabric, model: Model, optimizer: _FabricOpti
 
                 batch_size = images_weak.size(0)
 
-                entropy_maps, preds = process_forward(images_weak, prompts, model)
+                entropy_maps, preds = process_forward(images_weak, prompts, teacher_model)
                 
                 pred_stack = torch.stack(preds, dim=0)
                 entropy_maps = torch.stack(entropy_maps, dim=0)
@@ -192,7 +198,7 @@ def train_resam(cfg: Box, fabric: L.Fabric, model: Model, optimizer: _FabricOpti
                 bboxes = torch.stack(bboxes)
 
                 with torch.no_grad():
-                    embeddings, soft_masks, _, _ = model(images_weak, bboxes.unsqueeze(0))
+                    embeddings, soft_masks, _, _ = teacher_model(images_weak, bboxes.unsqueeze(0))
 
 
                 hard_embeddings, pred_masks, iou_predictions, _= model(images_strong, prompts)
@@ -264,8 +270,8 @@ def train_resam(cfg: Box, fabric: L.Fabric, model: Model, optimizer: _FabricOpti
                 beta = (4 / (1 + math.exp(-1.0 * (epoch - ((cfg.num_epochs + 1) / 2)))))
                 loss_total =  (20 * loss_focal +  loss_dice  + loss_iou)#+ loss_sim)   
 
-                if watcher.is_outlier(loss_total):
-                    continue
+                # if watcher.is_outlier(loss_total):
+                #     continue
                 fabric.backward(loss_total)
 
                 if analyze:
