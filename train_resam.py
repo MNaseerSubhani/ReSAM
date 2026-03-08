@@ -78,7 +78,7 @@ def process_forward(img_tensor, prompt, model):
         
 
 # persistent feature queue
-que_len = 4096
+que_len = 512
 feature_queue = deque(maxlen=que_len)  # keep up to 512 previous object embeddings
 feature_queue_hard = deque(maxlen=que_len)
 
