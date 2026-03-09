@@ -244,7 +244,7 @@ def train_resam(cfg: Box, fabric: L.Fabric, model: Model, optimizer: _FabricOpti
                 loss_sim  = loss_sim
                 
                 beta = (4 / (1 + math.exp(-1.0 * (epoch - ((cfg.num_epochs + 1) / 2)))))
-                loss_total =  (20 * loss_focal +  loss_dice  + loss_iou )#loss_sim)   
+                loss_total =  (20 * loss_focal +  loss_dice  + loss_iou +loss_sim)   
 
              
                 fabric.backward(loss_total)
