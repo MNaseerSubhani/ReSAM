@@ -175,7 +175,7 @@ def train_resam(cfg: Box, fabric: L.Fabric, model: Model, optimizer: _FabricOpti
 
                 with torch.no_grad():
                     embeddings, soft_masks, _, _ = model(images_weak, bboxes.unsqueeze(0))
-                sof_mask_prob = torch.sigmoid(torch.stack(soft_masks, dim=0))
+                # sof_mask_prob = torch.sigmoid(torch.stack(soft_masks, dim=0))
 
                 hard_embeddings, pred_masks, iou_predictions, _= model(images_strong, prompts)
                 del _
@@ -209,13 +209,13 @@ def train_resam(cfg: Box, fabric: L.Fabric, model: Model, optimizer: _FabricOpti
                 batch_feats = []  
 
                 for i, (pred_mask, soft_mask, iou_prediction, bbox) in enumerate(
-                        zip(pred_masks[0], sof_mask_prob[0], iou_predictions[0], bboxes  )
+                        zip(pred_masks[0], soft_masks[0], iou_predictions[0], bboxes  )
                     ):
-                        # soft_mask = (soft_mask > 0.).float()
+                        soft_mask = (soft_mask > 0.).float()
                         # soft_mask = torch.sigmoid(soft_mask).detach()
                     
-                        loss_focal += focal_loss(pred_mask, soft_mask)  
-                        loss_dice += dice_loss(pred_mask, soft_mask)   
+                        loss_focal += focal_loss(pred_mask, soft_mask, num_masks)  
+                        loss_dice += dice_loss(pred_mask, soft_mask, num_masks)   
                         batch_iou = calc_iou(pred_mask.unsqueeze(0), soft_mask.unsqueeze(0))
                         loss_iou += F.mse_loss(iou_prediction.view(-1), batch_iou.view(-1), reduction='sum') / num_masks
 
@@ -240,9 +240,9 @@ def train_resam(cfg: Box, fabric: L.Fabric, model: Model, optimizer: _FabricOpti
                         iou_diff_list.append(iou_diff)
 
                 # loss_dist = loss_dist / num_masks
-                loss_dice = loss_dice / num_masks
-                loss_focal = loss_focal / num_masks
-                loss_sim  = loss_sim
+                # loss_dice = loss_dice / num_masks
+                # loss_focal = loss_focal / num_masks
+                # loss_sim  = loss_sim
                 
                 beta = (4 / (1 + math.exp(-1.0 * (epoch - ((cfg.num_epochs + 1) / 2)))))
                 loss_total =  (20 * loss_focal +  loss_dice  + loss_iou )#+0.1*loss_sim)   
