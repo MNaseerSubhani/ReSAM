@@ -147,7 +147,7 @@ def train_resam(cfg: Box, fabric: L.Fabric, model: Model, optimizer: _FabricOpti
             
                 confidence_map = 1 - entropy_maps  # higher is more confident
                 # pred_binary = ((pred_stack * confidence_map )> 0.3).float()
-                pred_binary = ((pred_stack * confidence_map )> 0).float()
+                pred_binary = ((pred_stack * confidence_map )> 0.3).float()
                
                 overlap_count = pred_binary.sum(dim=0)
                 overlap_map = (overlap_count > 1).float()
@@ -180,6 +180,8 @@ def train_resam(cfg: Box, fabric: L.Fabric, model: Model, optimizer: _FabricOpti
                 hard_embeddings, pred_masks, iou_predictions, _= model(images_strong, prompts)
                 del _
 
+                if len(bboxes) != len(pred_masks[0]):
+                    continue
                 num_masks = sum(len(pred_mask) for pred_mask in pred_masks)
                 loss_focal = torch.tensor(0., device=fabric.device)
                 loss_dice = torch.tensor(0., device=fabric.device)
