@@ -232,7 +232,7 @@ def train_resam(cfg: Box, fabric: L.Fabric, model: Model, optimizer: _FabricOpti
                         loss_focal += focal_loss(pred_mask, soft_mask)  
                         loss_dice += dice_loss(pred_mask, soft_mask)   
                         batch_iou = calc_iou(pred_mask.unsqueeze(0), soft_mask.unsqueeze(0))
-                        loss_iou += F.mse_loss(iou_prediction.view(-1), batch_iou.view(-1), reduction='sum') / num_masks
+                        loss_iou += F.mse_loss(iou_prediction.view(-1), batch_iou.view(-1), reduction='sum') 
 
                 del  pred_masks, iou_predictions 
                 del pred_stack, overlap_map, invert_overlap_map
@@ -258,12 +258,13 @@ def train_resam(cfg: Box, fabric: L.Fabric, model: Model, optimizer: _FabricOpti
                 loss_dice = loss_dice / num_masks
                 loss_focal = loss_focal / num_masks
                 loss_sim  = loss_sim
+                loss_iou = loss_iou/num_masks
                 
                 beta = (4 / (1 + math.exp(-1.0 * (epoch - ((cfg.num_epochs + 1) / 2)))))
                 loss_total =  (20 * loss_focal +  loss_dice  + loss_iou + beta*loss_sim)   
 
-                if watcher.is_outlier(loss_total):
-                    continue
+                # if watcher.is_outlier(loss_total):
+                #     continue
                 fabric.backward(loss_total)
 
                 if analyze:
