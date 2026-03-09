@@ -154,23 +154,30 @@ def train_resam(cfg: Box, fabric: L.Fabric, model: Model, optimizer: _FabricOpti
 
                 entropy_maps, preds = process_forward(images_weak, prompts, model)
                 
-                pred_stack = torch.stack(preds, dim=0)
-                entropy_maps = torch.stack(entropy_maps, dim=0)
+                # pred_stack = torch.stack(preds, dim=0)
+                # entropy_maps = torch.stack(entropy_maps, dim=0)
             
-                
-                
-                confidence_map = 1 - entropy_maps  # higher is more confident
-                pred_binary = ((pred_stack * confidence_map )> 0.3).float()
+                # confidence_map = 1 - entropy_maps  # higher is more confident
+                # pred_binary = ((pred_stack * confidence_map )> 0.3).float()
                
-          
-
-          
-                overlap_count = pred_binary.sum(dim=0)
-                overlap_map = (overlap_count > 1).float()
-                invert_overlap_map = 1.0 - overlap_map
+                # overlap_count = pred_binary.sum(dim=0)
+                # overlap_map = (overlap_count > 1).float()
+                # invert_overlap_map = 1.0 - overlap_map
 
       
+                pred_stack = torch.stack(preds).squeeze(1)        # [N,H,W]
+                entropy_maps = torch.stack(entropy_maps).squeeze(1)
 
+                confidence_map = 1 - entropy_maps
+
+                mask = pred_stack > 0.5
+                conf = confidence_map > 0.6
+
+                pred_binary = (mask & conf).float()
+
+                overlap_count = pred_binary.sum(dim=0)
+                overlap_map = overlap_count > 1
+                invert_overlap_map = ~overlap_map
 
                 bboxes = []
 
