@@ -58,7 +58,7 @@ def process_forward(img_tensor, prompt, model):
         entropy_maps.append(entropy_norm)
         pred_ins.append(p)
 
-    return entropy_maps, pred_ins
+    return entropy_maps, masks_pred
 
 
         
@@ -147,7 +147,7 @@ def train_resam(cfg: Box, fabric: L.Fabric, model: Model, optimizer: _FabricOpti
             
                 confidence_map = 1 - entropy_maps  # higher is more confident
                 # pred_binary = ((pred_stack * confidence_map )> 0.3).float()
-                pred_binary = ((pred_stack * confidence_map )> 0.3).float()
+                pred_binary = ((pred_stack  )> 0.99).float()
                
                 overlap_count = pred_binary.sum(dim=0)
                 overlap_map = (overlap_count > 1).float()
