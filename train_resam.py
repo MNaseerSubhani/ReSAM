@@ -212,8 +212,8 @@ def train_resam(cfg: Box, fabric: L.Fabric, model: Model, optimizer: _FabricOpti
                         zip(pred_masks, soft_masks, iou_predictions  )
                     ):
                         soft_mask = (soft_mask > 0.).float()
-                        # soft_mask = torch.sigmoid(soft_mask).detach()
-                    
+
+                        print(pred_mask.shape, soft_mask.shape, iou_prediction.shape)
                         loss_focal += focal_loss(pred_mask, soft_mask, num_masks)  
                         loss_dice += dice_loss(pred_mask, soft_mask, num_masks)   
                         batch_iou = calc_iou(pred_mask, soft_mask)
