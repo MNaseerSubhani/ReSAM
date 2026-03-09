@@ -25,7 +25,7 @@ from lightning.fabric.fabric import _FabricOptimizer
 from box import Box
 from datasets import call_load_dataset
 from utils.model import Model
-from utils.losses import DiceLoss, FocalLoss, cosine_similarity
+from utils.losses import DiceLoss, FocalLoss, Matching_Loss, cosine_similarity
 from utils.eval_utils import AverageMeter, validate, get_prompts, calc_iou
 from utils.tools import copy_model, create_csv, reduce_instances
 from utils.utils import *
@@ -37,6 +37,22 @@ import torch.nn.functional as F
 from collections import deque
 import matplotlib. pyplot as plt
 
+
+
+class LossWatcher:
+    def __init__(self, window=100, factor=10.0):
+        self.window = window
+        self.factor = factor
+        self.losses = []
+    
+    def is_outlier(self, loss):
+        if not torch.isfinite(loss):
+            return True
+        self.losses.append(loss.item())
+        if len(self.losses) < self.window:
+            return False
+        recent_avg = sum(self.losses[-self.window:]) / self.window
+        return loss.item() > recent_avg * self.factor
 
 
 
@@ -58,15 +74,12 @@ def process_forward(img_tensor, prompt, model):
         entropy_maps.append(entropy_norm)
         pred_ins.append(p)
 
-    return entropy_maps, masks_pred
-
-
+    return entropy_maps, pred_ins
         
 
 # persistent feature queue
-que_len = 32
-feature_queue = deque(maxlen=que_len)  # keep up to 512 previous object embeddings
-feature_queue_hard = deque(maxlen=que_len)
+feature_queue = deque(maxlen=32)  # keep up to 512 previous object embeddings
+feature_queue_hard = deque(maxlen=32)
 
 
 
@@ -75,6 +88,7 @@ analyze = False
 def train_resam(cfg: Box, fabric: L.Fabric, model: Model, optimizer: _FabricOptimizer,
               scheduler: _FabricOptimizer, train_dataloader: DataLoader, val_dataloader: DataLoader):
 
+    watcher = LossWatcher(window=50, factor=4)
     focal_loss = FocalLoss()
     dice_loss = DiceLoss()
     best_state = copy.deepcopy(model.state_dict())
@@ -122,9 +136,6 @@ def train_resam(cfg: Box, fabric: L.Fabric, model: Model, optimizer: _FabricOpti
         sim_losses = AverageMeter()
         end = time.time()
 
-        # Create teacher as a copy of student model
-
-     
         for iter, data in enumerate(train_dataloader):
             
             data_time.update(time.time() - end)
@@ -135,7 +146,7 @@ def train_resam(cfg: Box, fabric: L.Fabric, model: Model, optimizer: _FabricOpti
             for j in range(0, len(gt_masks[0]), step_size):
                 gt_masks_new = gt_masks[0][j:j+step_size].unsqueeze(0)
 
-    
+
                 prompts = get_prompts(cfg, bboxes, gt_masks_new)
 
                 batch_size = images_weak.size(0)
@@ -144,44 +155,47 @@ def train_resam(cfg: Box, fabric: L.Fabric, model: Model, optimizer: _FabricOpti
                 
                 pred_stack = torch.stack(preds, dim=0)
                 entropy_maps = torch.stack(entropy_maps, dim=0)
-            
+
+
+                
                 confidence_map = 1 - entropy_maps  # higher is more confident
-                # pred_binary = ((pred_stack * confidence_map )> 0.3).float()
-                pred_binary = ((pred_stack  )> 0.99).float()
-               
+                pred_binary = ((pred_stack * confidence_map )> 0.3).float()
+
+          
                 overlap_count = pred_binary.sum(dim=0)
                 overlap_map = (overlap_count > 1).float()
                 invert_overlap_map = 1.0 - overlap_map
 
       
-               
+
+
                 bboxes = []
 
                 for i,  (pred, ent) in enumerate( zip(pred_binary, entropy_maps)):
             
                     pred_w_overlap = ((pred[0]*invert_overlap_map[0]  ) )#    * ((1 - 0.1 * ent[0]))
-                    ys, xs = torch.where(pred_w_overlap > 0)
+                    ys, xs = torch.where(pred_w_overlap > 0.5)
                     if len(xs) > 0 and len(ys) > 0:
                         x_min, x_max = xs.min().item(), xs.max().item()
                         y_min, y_max = ys.min().item(), ys.max().item()
 
                         bboxes.append(torch.tensor([x_min, y_min , x_max, y_max], dtype=torch.float32))
 
-                
+                    
                 if len(bboxes) == 0:
                     continue  # skip if no valid region
-               
+
+            
+
                 bboxes = torch.stack(bboxes)
 
                 with torch.no_grad():
                     embeddings, soft_masks, _, _ = model(images_weak, bboxes.unsqueeze(0))
-                # sof_mask_prob = torch.sigmoid(torch.stack(soft_masks, dim=0))
+
 
                 hard_embeddings, pred_masks, iou_predictions, _= model(images_strong, prompts)
                 del _
 
-                if len(bboxes) != len(pred_masks[0]):
-                    continue
                 num_masks = sum(len(pred_mask) for pred_mask in pred_masks)
                 loss_focal = torch.tensor(0., device=fabric.device)
                 loss_dice = torch.tensor(0., device=fabric.device)
@@ -192,7 +206,7 @@ def train_resam(cfg: Box, fabric: L.Fabric, model: Model, optimizer: _FabricOpti
                 batch_feats_hard = [get_bbox_feature(hard_embeddings, bbox) for bbox in bboxes]
             
                 
-                if len(feature_queue) == que_len:
+                if len(feature_queue) == 32:
                     batch_feats = F.normalize(torch.stack(batch_feats, dim=0), dim=1)
                     batch_feats_hard = F.normalize(torch.stack(batch_feats_hard, dim=0), dim=1)
                     loss_sim = similarity_loss(feature_queue_hard,feature_queue)
@@ -210,16 +224,15 @@ def train_resam(cfg: Box, fabric: L.Fabric, model: Model, optimizer: _FabricOpti
 
                 batch_feats = []  
 
-                for i, (pred_mask, soft_mask, iou_prediction) in enumerate(
-                        zip(pred_masks, soft_masks, iou_predictions  )
+                for i, (pred_mask, soft_mask, iou_prediction, bbox) in enumerate(
+                        zip(pred_masks[0], soft_masks[0], iou_predictions[0], bboxes  )
                     ):
                         soft_mask = (soft_mask > 0.).float()
-
-               
-                        loss_focal += focal_loss(pred_mask, soft_mask, num_masks)  
-                        loss_dice += dice_loss(pred_mask, soft_mask, num_masks)   
-                        batch_iou = calc_iou(pred_mask, soft_mask)
-                        loss_iou += F.mse_loss(iou_prediction, batch_iou, reduction='sum') / num_masks
+                    
+                        loss_focal += focal_loss(pred_mask, soft_mask)  
+                        loss_dice += dice_loss(pred_mask, soft_mask)   
+                        batch_iou = calc_iou(pred_mask.unsqueeze(0), soft_mask.unsqueeze(0))
+                        loss_iou += F.mse_loss(iou_prediction.view(-1), batch_iou.view(-1), reduction='sum') / num_masks
 
                 del  pred_masks, iou_predictions 
                 del pred_stack, overlap_map, invert_overlap_map
@@ -242,14 +255,15 @@ def train_resam(cfg: Box, fabric: L.Fabric, model: Model, optimizer: _FabricOpti
                         iou_diff_list.append(iou_diff)
 
                 # loss_dist = loss_dist / num_masks
-                # loss_dice = loss_dice / num_masks
-                # loss_focal = loss_focal / num_masks
-                # loss_sim  = loss_sim
+                loss_dice = loss_dice / num_masks
+                loss_focal = loss_focal / num_masks
+                loss_sim  = loss_sim
                 
                 beta = (4 / (1 + math.exp(-1.0 * (epoch - ((cfg.num_epochs + 1) / 2)))))
-                loss_total =  (20 * loss_focal +  loss_dice  + loss_iou )#+0.1*loss_sim)   
+                loss_total =  (20 * loss_focal +  loss_dice  + loss_iou + beta*loss_sim)   
 
-             
+                if watcher.is_outlier(loss_total):
+                    continue
                 fabric.backward(loss_total)
 
                 if analyze:
@@ -262,7 +276,6 @@ def train_resam(cfg: Box, fabric: L.Fabric, model: Model, optimizer: _FabricOpti
                             bboxes,                     
                             os.path.join(cfg.out_dir, "analyze")
                         )
-      
 
                 optimizer.step()
                 scheduler.step()
