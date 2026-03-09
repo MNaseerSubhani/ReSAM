@@ -259,6 +259,7 @@ def train_resam(cfg: Box, fabric: L.Fabric, model: Model, optimizer: _FabricOpti
                             bboxes,                     
                             os.path.join(cfg.out_dir, "analyze")
                         )
+                torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
 
                 optimizer.step()
                 scheduler.step()
