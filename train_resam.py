@@ -39,22 +39,6 @@ import matplotlib. pyplot as plt
 
 
 
-class LossWatcher:
-    def __init__(self, window=100, factor=10.0):
-        self.window = window
-        self.factor = factor
-        self.losses = []
-    
-    def is_outlier(self, loss):
-        if not torch.isfinite(loss):
-            return True
-        self.losses.append(loss.item())
-        if len(self.losses) < self.window:
-            return False
-        recent_avg = sum(self.losses[-self.window:]) / self.window
-        return loss.item() > recent_avg * self.factor
-
-
 
 def process_forward(img_tensor, prompt, model):
     with torch.no_grad():
@@ -89,7 +73,6 @@ analyze = False
 def train_resam(cfg: Box, fabric: L.Fabric, model: Model, optimizer: _FabricOptimizer,
               scheduler: _FabricOptimizer, train_dataloader: DataLoader, val_dataloader: DataLoader):
 
-    watcher = LossWatcher(window=20, factor=4)
     focal_loss = FocalLoss()
     dice_loss = DiceLoss()
     best_state = copy.deepcopy(model.state_dict())
@@ -267,8 +250,7 @@ def train_resam(cfg: Box, fabric: L.Fabric, model: Model, optimizer: _FabricOpti
                 beta = (4 / (1 + math.exp(-1.0 * (epoch - ((cfg.num_epochs + 1) / 2)))))
                 loss_total =  (20 * loss_focal +  loss_dice  + loss_iou )#loss_sim)   
 
-                # if watcher.is_outlier(loss_total):
-                #     continue
+             
                 fabric.backward(loss_total)
 
                 if analyze:
