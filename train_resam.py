@@ -261,7 +261,7 @@ def train_resam(cfg: Box, fabric: L.Fabric, model: Model, optimizer: _FabricOpti
                 loss_iou = loss_iou/num_masks
                 
                 beta = (4 / (1 + math.exp(-1.0 * (epoch - ((cfg.num_epochs + 1) / 2)))))
-                loss_total =  (20 * loss_focal +  loss_dice  + loss_iou)   
+                loss_total =  (20 * loss_focal +  loss_dice  + loss_iou )   
 
                 # if watcher.is_outlier(loss_total):
                 #     continue
