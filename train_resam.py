@@ -233,7 +233,7 @@ def train_resam(cfg: Box, fabric: L.Fabric, model: Model, optimizer: _FabricOpti
                 # Simple cosine alignment for matching regions
                 cos_sim  = (batch_feats * batch_feats_hard).sum(dim=1)
                 loss_sim = (1.0 - cos_sim).mean()
-=
+
                 batch_feats = []  
 
                 for i, (pred_mask, soft_mask, iou_prediction, bbox) in enumerate(
