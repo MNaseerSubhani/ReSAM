@@ -120,7 +120,6 @@ def get_prompts(cfg: Box, bboxes, gt_masks):
 
 
 
-
 def similarity_loss(hard_feats,soft_feats):
     """
     soft_feats: [B, D]
@@ -138,6 +137,9 @@ def similarity_loss(hard_feats,soft_feats):
     loss = ((1 - cos_sim) ).mean()
 
     return loss
+
+
+
 
 
 
