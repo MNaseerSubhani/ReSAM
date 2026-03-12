@@ -224,15 +224,15 @@ def train_resam(cfg: Box, fabric: L.Fabric, model: Model, optimizer: _FabricOpti
                 #     loss_sim = torch.tensor(0., device=fabric.device)
 
                 # After computing embeddings, hard_embeddings and bboxes
-                    batch_feats      = [get_bbox_feature(embeddings,      bbox) for bbox in bboxes]
-                    batch_feats_hard = [get_bbox_feature(hard_embeddings, bbox) for bbox in bboxes]
+                batch_feats      = [get_bbox_feature(embeddings,      bbox) for bbox in bboxes]
+                batch_feats_hard = [get_bbox_feature(hard_embeddings, bbox) for bbox in bboxes]
 
-                    batch_feats      = F.normalize(torch.stack(batch_feats,      dim=0), dim=1)
-                    batch_feats_hard = F.normalize(torch.stack(batch_feats_hard, dim=0), dim=1)
+                batch_feats      = F.normalize(torch.stack(batch_feats,      dim=0), dim=1)
+                batch_feats_hard = F.normalize(torch.stack(batch_feats_hard, dim=0), dim=1)
 
-                    # Simple cosine alignment for matching regions
-                    cos_sim  = (batch_feats * batch_feats_hard).sum(dim=1)
-                    loss_sim = (1.0 - cos_sim).mean()
+                # Simple cosine alignment for matching regions
+                cos_sim  = (batch_feats * batch_feats_hard).sum(dim=1)
+                loss_sim = (1.0 - cos_sim).mean()
 =
                 batch_feats = []  
 
