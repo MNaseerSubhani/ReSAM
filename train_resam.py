@@ -237,16 +237,9 @@ def train_resam(cfg: Box, fabric: L.Fabric, model: Model, optimizer: _FabricOpti
                 cos_sim = (batch_feats * batch_feats_hard).sum(dim=1)
 
                 # pull together if similarity > margin
-                pos_loss = torch.clamp(1 - cos_sim, min=0)
+                loss_sim = torch.clamp(1 - cos_sim, min=0)
 
-                # repel if similarity < margin
-                neg_loss = torch.clamp(cos_sim - margin, min=0)
-
-                loss_sim = torch.where(
-                    cos_sim > margin,
-                    pos_loss,
-                    neg_loss
-                    ).mean()
+                
 
                 batch_feats = []  
 
