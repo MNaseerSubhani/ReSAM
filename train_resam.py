@@ -25,7 +25,7 @@ from lightning.fabric.fabric import _FabricOptimizer
 from box import Box
 from datasets import call_load_dataset
 from utils.model import Model
-from utils.losses import DiceLoss, FocalLoss, cosine_similarity
+from utils.losses import DiceLoss, BCELossSimple, cosine_similarity
 from utils.eval_utils import AverageMeter, validate, get_prompts, calc_iou
 from utils.tools import copy_model, create_csv, reduce_instances
 from utils.utils import *
@@ -253,7 +253,7 @@ def train_resam(cfg: Box, fabric: L.Fabric, model: Model, optimizer: _FabricOpti
                     ):
                         soft_mask = (soft_mask > 0.).float()
                     
-                        loss_focal += focal_loss(pred_mask, soft_mask)  
+                        loss_bce += BCELossSimple(pred_mask, soft_mask)  
                         loss_dice += dice_loss(pred_mask, soft_mask)   
                         batch_iou = calc_iou(pred_mask.unsqueeze(0), soft_mask.unsqueeze(0))
                         loss_iou += F.mse_loss(iou_prediction.view(-1), batch_iou.view(-1), reduction='sum') 
@@ -280,12 +280,12 @@ def train_resam(cfg: Box, fabric: L.Fabric, model: Model, optimizer: _FabricOpti
 
      
                 loss_dice = loss_dice / num_masks
-                loss_focal = loss_focal / num_masks
+                loss_bce = loss_bce / num_masks
                 loss_sim  = loss_sim
                 loss_iou = loss_iou/num_masks
                 
                 beta = (4 / (1 + math.exp(-1.0 * (epoch - ((cfg.num_epochs + 1) / 2)))))
-                loss_total =  (  loss_dice  + loss_iou )#+ 0.1*loss_sim)   
+                loss_total =  (loss_bce +  loss_dice  + loss_iou )#+ 0.1*loss_sim)   
 
                 # if watcher.is_outlier(loss_total):
                 #     continue
@@ -314,7 +314,7 @@ def train_resam(cfg: Box, fabric: L.Fabric, model: Model, optimizer: _FabricOpti
                 batch_time.update(time.time() - end)
                 end = time.time()
 
-                focal_losses.update(loss_focal.item(), batch_size)
+                focal_losses.update(loss_bce.item(), batch_size)
                 dice_losses.update(loss_dice.item(), batch_size)
                 iou_losses.update(loss_iou.item(), batch_size)
                 total_losses.update(loss_total.item(), batch_size)
