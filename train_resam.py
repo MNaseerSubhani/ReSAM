@@ -198,6 +198,9 @@ def train_resam(cfg: Box, fabric: L.Fabric, model: Model, optimizer: _FabricOpti
                 hard_embeddings, pred_masks, iou_predictions, _= model(images_strong, prompts)
                 del _
 
+                print(pred_masks.min(), pred_masks.max())
+                print(iou_predictions.min(), iou_predictions.max())
+
                 num_masks = sum(len(pred_mask) for pred_mask in pred_masks)
                 loss_bce = torch.tensor(0., device=fabric.device)
                 loss_dice = torch.tensor(0., device=fabric.device)
@@ -251,7 +254,10 @@ def train_resam(cfg: Box, fabric: L.Fabric, model: Model, optimizer: _FabricOpti
                 for i, (pred_mask, soft_mask, iou_prediction, bbox) in enumerate(
                         zip(pred_masks[0], soft_masks[0], iou_predictions[0], bboxes  )
                     ):
-                        soft_mask = (soft_mask > 0.).float()
+                        # soft_mask = (soft_mask > 0.).float()
+                        soft_mask = F.sigmoid(soft_mask)
+                        pred_mask = F.sigmoid(pred_mask)
+                        
                     
                         loss_bce += bce_loss(pred_mask, soft_mask)  
                         loss_dice += dice_loss(pred_mask, soft_mask)   

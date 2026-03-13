@@ -36,7 +36,7 @@ class BCELossSimple(nn.Module):
         super().__init__()
 
     def forward(self, inputs, targets):
-        inputs = torch.sigmoid(inputs)
+
 
         # flatten tensors
         inputs = inputs.view(-1)
@@ -65,7 +65,7 @@ class DiceLoss(nn.Module):
         super().__init__()
 
     def forward(self, inputs, targets, smooth=1):
-        inputs = F.sigmoid(inputs)
+  
         inputs = torch.clamp(inputs, min=0, max=1)
         #flatten label and prediction tensors
         inputs = inputs.view(-1)
