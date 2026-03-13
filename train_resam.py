@@ -91,7 +91,7 @@ def train_resam(cfg: Box, fabric: L.Fabric, model: Model, optimizer: _FabricOpti
               scheduler: _FabricOptimizer, train_dataloader: DataLoader, val_dataloader: DataLoader):
 
     watcher = LossWatcher(window=50, factor=4)
-    focal_loss = FocalLoss()
+    bce_loss = BCELossSimple()
     dice_loss = DiceLoss()
     best_state = copy.deepcopy(model.state_dict())
     no_improve_count = 0
@@ -253,7 +253,7 @@ def train_resam(cfg: Box, fabric: L.Fabric, model: Model, optimizer: _FabricOpti
                     ):
                         soft_mask = (soft_mask > 0.).float()
                     
-                        loss_bce += BCELossSimple(pred_mask, soft_mask)  
+                        loss_bce += bce_loss(pred_mask, soft_mask)  
                         loss_dice += dice_loss(pred_mask, soft_mask)   
                         batch_iou = calc_iou(pred_mask.unsqueeze(0), soft_mask.unsqueeze(0))
                         loss_iou += F.mse_loss(iou_prediction.view(-1), batch_iou.view(-1), reduction='sum') 
