@@ -199,7 +199,7 @@ def train_resam(cfg: Box, fabric: L.Fabric, model: Model, optimizer: _FabricOpti
                 del _
 
                 num_masks = sum(len(pred_mask) for pred_mask in pred_masks)
-                loss_focal = torch.tensor(0., device=fabric.device)
+                loss_bce = torch.tensor(0., device=fabric.device)
                 loss_dice = torch.tensor(0., device=fabric.device)
                 loss_iou = torch.tensor(0., device=fabric.device)
                 loss_sim = torch.tensor(0., device=fabric.device)
