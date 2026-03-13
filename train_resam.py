@@ -246,8 +246,8 @@ def train_resam(cfg: Box, fabric: L.Fabric, model: Model, optimizer: _FabricOpti
                 for i, (pred_mask, soft_mask, iou_prediction, bbox) in enumerate(
                         zip(pred_masks[0], soft_masks[0], iou_predictions[0], bboxes  )
                     ):
-                        # soft_mask = (soft_mask > 0.).float()
-                        soft_mask = F.sigmoid(soft_mask)
+                        soft_mask = (soft_mask > 0.).float()
+                        # soft_mask = F.sigmoid(soft_mask)
                         pred_mask = F.sigmoid(pred_mask)
                         
                     
