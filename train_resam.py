@@ -246,8 +246,8 @@ def train_resam(cfg: Box, fabric: L.Fabric, model: Model, optimizer: _FabricOpti
                 for i, (pred_mask, soft_mask, iou_prediction, bbox) in enumerate(
                         zip(pred_masks[0], soft_masks[0], iou_predictions[0], bboxes  )
                     ):
-                        soft_mask = (soft_mask > 0.).float()
-                        # soft_mask = F.sigmoid(soft_mask)
+                        # soft_mask = (soft_mask > 0.).float()
+                        soft_mask = F.sigmoid(soft_mask)
                         pred_mask = F.sigmoid(pred_mask)
                         
                     
@@ -283,7 +283,7 @@ def train_resam(cfg: Box, fabric: L.Fabric, model: Model, optimizer: _FabricOpti
                 loss_iou = loss_iou/num_masks
                 
                 beta = (4 / (1 + math.exp(-1.0 * (epoch - ((cfg.num_epochs + 1) / 2)))))
-                loss_total =  ( loss_bce+ 0.01*loss_dice  + loss_iou )#+ 0.1*loss_sim)   
+                loss_total =  ( loss_bce+ 0.04*loss_dice  + loss_iou )#+ 0.1*loss_sim)   
 
                 # if watcher.is_outlier(loss_total):
                 #     continue
