@@ -226,25 +226,7 @@ def train_resam(cfg: Box, fabric: L.Fabric, model: Model, optimizer: _FabricOpti
                     
                     loss_sim = torch.tensor(0., device=fabric.device)
 
-                # batch_feats = F.normalize(torch.stack(batch_feats), dim=1)        # soft
-                # batch_feats_hard = F.normalize(torch.stack(batch_feats_hard), dim=1)  # hard
-
-                # if len(feature_queue) > 0:
-
-                #     queue_feats = torch.stack(feature_queue)   # [Q, D]
-
-                #     sim = torch.matmul(batch_feats_hard, queue_feats.T)
-
-                #     loss_sim = (1 - sim.max(dim=1).values).mean()
-
-                # else:
-                #     loss_sim = torch.tensor(0., device=batch_feats.device)
-
-                # for f in batch_feats:
-                #     feature_queue.append([f.detach() for f in batch_feats])
-
-                # if len(feature_queue) > len_q:
-                #     feature_queue.pop(0)
+        
                         
 
 
@@ -254,8 +236,7 @@ def train_resam(cfg: Box, fabric: L.Fabric, model: Model, optimizer: _FabricOpti
                 for i, (pred_mask, soft_mask, iou_prediction, bbox) in enumerate(
                         zip(pred_masks[0], soft_masks[0], iou_predictions[0], bboxes  )
                     ):
-                        # soft_mask = (soft_mask > 0.).float()
-                        # soft_mask = F.sigmoid(soft_mask)
+                   
                         soft_mask = (soft_mask > 0).float()
                         pred_mask = F.sigmoid(pred_mask)
                         
@@ -292,7 +273,7 @@ def train_resam(cfg: Box, fabric: L.Fabric, model: Model, optimizer: _FabricOpti
                 loss_iou = loss_iou/num_masks
                 
                 # beta = (4 / (1 + math.exp(-1.0 * (epoch - ((cfg.num_epochs + 1) / 2)))))
-                loss_total =  (loss_bce  +  loss_dice  + loss_iou + 0.1*loss_sim)   
+                loss_total =  (0.1*loss_bce  +  loss_dice  + loss_iou + 0.1*loss_sim)   
 
 
                 fabric.backward(loss_total)
