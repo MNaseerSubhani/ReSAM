@@ -213,8 +213,8 @@ def train_resam(cfg: Box, fabric: L.Fabric, model: Model, optimizer: _FabricOpti
                 if len(feature_queue) == len_q:
                     batch_feats = F.normalize(torch.stack(batch_feats, dim=0), dim=1)
                     batch_feats_hard = F.normalize(torch.stack(batch_feats_hard, dim=0), dim=1)
-                    # loss_sim = similarity_loss(feature_queue_hard,feature_queue)
-                    loss_sim = similarity_loss(batch_feats_hard, feature_queue)
+                    loss_sim = similarity_loss(feature_queue_hard,feature_queue)
+                    # loss_sim = similarity_loss(batch_feats_hard, batch_feats)
                     loss_sim = torch.tensor(0., device=batch_feats.device) if loss_sim == -1 else loss_sim
                     feature_queue.extend([f.detach() for f in batch_feats])
                     feature_queue_hard.extend([f.detach() for f in batch_feats_hard])
