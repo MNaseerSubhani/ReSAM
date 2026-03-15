@@ -233,7 +233,7 @@ def train_resam(cfg: Box, fabric: L.Fabric, model: Model, optimizer: _FabricOpti
 
                 batch_feats = []  
 
-                print(pred_masks[0].shpae, soft_masks[0],shape)
+                print(pred_masks[0].shape, soft_masks[0].shape)
                 print(len(bboxes))
 
                 for i, (pred_mask, soft_mask, iou_prediction, bbox) in enumerate(
