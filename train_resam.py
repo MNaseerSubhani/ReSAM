@@ -25,7 +25,7 @@ from lightning.fabric.fabric import _FabricOptimizer
 from box import Box
 from datasets import call_load_dataset
 from utils.model import Model
-from utils.losses import DiceLoss, BCELossSimple, cosine_similarity
+from utils.losses import DiceLoss, FocalLoss, cosine_similarity
 from utils.eval_utils import AverageMeter, validate, get_prompts, calc_iou
 from utils.tools import copy_model, create_csv, reduce_instances
 from utils.utils import *
@@ -91,7 +91,7 @@ def train_resam(cfg: Box, fabric: L.Fabric, model: Model, optimizer: _FabricOpti
               scheduler: _FabricOptimizer, train_dataloader: DataLoader, val_dataloader: DataLoader):
 
     watcher = LossWatcher(window=50, factor=4)
-    bce_loss = BCELossSimple()
+    bce_loss = FocalLoss()
     dice_loss = DiceLoss()
     best_state = copy.deepcopy(model.state_dict())
     no_improve_count = 0
@@ -201,6 +201,9 @@ def train_resam(cfg: Box, fabric: L.Fabric, model: Model, optimizer: _FabricOpti
                 if len(bboxes) == 0:
                     continue  # skip if no valid region
 
+                if soft_masks[0].shape[0] != pred_masks[0].shape[0]:
+                    continue
+
                 num_masks = sum(len(pred_mask) for pred_mask in pred_masks)
                 loss_bce = torch.tensor(0., device=fabric.device)
                 loss_dice = torch.tensor(0., device=fabric.device)
@@ -228,27 +231,21 @@ def train_resam(cfg: Box, fabric: L.Fabric, model: Model, optimizer: _FabricOpti
                     loss_sim = torch.tensor(0., device=fabric.device)
 
         
-                        
-
-
-
                 batch_feats = []  
 
-                print(pred_masks[0].shape, soft_masks[0].shape[0])
-                print(len(bboxes))
 
-                for i, (pred_mask, soft_mask, iou_prediction, bbox) in enumerate(
-                        zip(pred_masks[0], soft_masks[0], iou_predictions[0], bboxes  )
+                for i, (pred_mask, soft_mask, iou_prediction) in enumerate(
+                        zip(pred_masks, soft_masks, iou_predictions  )
                     ):
                    
                         soft_mask = (soft_mask > 0).float()
                         pred_mask = F.sigmoid(pred_mask)
                         
                     
-                        loss_bce += bce_loss(pred_mask, soft_mask)  
-                        loss_dice += dice_loss(pred_mask, soft_mask)   
+                        loss_bce += bce_loss(pred_mask, soft_mask, num_masks)  
+                        loss_dice += dice_loss(pred_mask, soft_mask, num_masks)   
                         batch_iou = calc_iou(pred_mask.unsqueeze(0), soft_mask.unsqueeze(0))
-                        loss_iou += F.mse_loss(iou_prediction.view(-1), batch_iou.view(-1), reduction='sum') 
+                        loss_iou += F.mse_loss(iou_prediction, batch_iou, reduction='sum') / num_masks 
 
                 del  pred_masks, iou_predictions 
                 del pred_stack, overlap_map, invert_overlap_map
@@ -271,13 +268,13 @@ def train_resam(cfg: Box, fabric: L.Fabric, model: Model, optimizer: _FabricOpti
                         iou_diff_list.append(iou_diff)
 
      
-                loss_dice = loss_dice / num_masks
-                loss_bce = loss_bce / num_masks
-                loss_sim  = loss_sim
-                loss_iou = loss_iou/num_masks
+                # loss_dice = loss_dice / num_masks
+                # loss_bce = loss_bce / num_masks
+                # loss_sim  = loss_sim
+                # loss_iou = loss_iou/num_masks
                 
                 # beta = (4 / (1 + math.exp(-1.0 * (epoch - ((cfg.num_epochs + 1) / 2)))))
-                loss_total =  (0.1*loss_bce  +  loss_dice  + loss_iou + 0.1*loss_sim)   
+                loss_total =  (20*loss_bce  +  loss_dice  + loss_iou + 0.1*loss_sim)   
 
 
                 fabric.backward(loss_total)
