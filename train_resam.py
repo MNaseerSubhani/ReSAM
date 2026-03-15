@@ -188,7 +188,6 @@ def train_resam(cfg: Box, fabric: L.Fabric, model: Model, optimizer: _FabricOpti
                     continue  # skip if no valid region
 
             
-
                 bboxes = torch.stack(bboxes)
 
                 with torch.no_grad():
@@ -198,7 +197,9 @@ def train_resam(cfg: Box, fabric: L.Fabric, model: Model, optimizer: _FabricOpti
                 hard_embeddings, pred_masks, iou_predictions, _= model(images_strong, prompts)
                 del _
 
-        
+
+                if len(bboxes) == 0:
+                    continue  # skip if no valid region
 
                 num_masks = sum(len(pred_mask) for pred_mask in pred_masks)
                 loss_bce = torch.tensor(0., device=fabric.device)
@@ -233,7 +234,7 @@ def train_resam(cfg: Box, fabric: L.Fabric, model: Model, optimizer: _FabricOpti
 
                 batch_feats = []  
 
-                print(pred_masks[0].shape, soft_masks[0].shape)
+                print(pred_masks[0].shape, soft_masks[0].shape[0])
                 print(len(bboxes))
 
                 for i, (pred_mask, soft_mask, iou_prediction, bbox) in enumerate(
