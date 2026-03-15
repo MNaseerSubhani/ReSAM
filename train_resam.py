@@ -233,6 +233,9 @@ def train_resam(cfg: Box, fabric: L.Fabric, model: Model, optimizer: _FabricOpti
 
                 batch_feats = []  
 
+                print(pred_masks[0].shpae, soft_masks[0],shape)
+                print(len(bboxes))
+
                 for i, (pred_mask, soft_mask, iou_prediction, bbox) in enumerate(
                         zip(pred_masks[0], soft_masks[0], iou_predictions[0], bboxes  )
                     ):
@@ -272,7 +275,7 @@ def train_resam(cfg: Box, fabric: L.Fabric, model: Model, optimizer: _FabricOpti
                 loss_sim  = loss_sim
                 loss_iou = loss_iou/num_masks
                 
-                beta = (4 / (1 + math.exp(-1.0 * (epoch - ((cfg.num_epochs + 1) / 2)))))
+                # beta = (4 / (1 + math.exp(-1.0 * (epoch - ((cfg.num_epochs + 1) / 2)))))
                 loss_total =  (0.1*loss_bce  +  loss_dice  + loss_iou + 0.1*loss_sim)   
 
 
