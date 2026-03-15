@@ -15,7 +15,7 @@ class FocalLoss(nn.Module):
 
 
     def forward(self, inputs, targets, alpha=ALPHA, gamma=GAMMA, smooth=1):
-        inputs = F.sigmoid(inputs)
+        # inputs = F.sigmoid(inputs)
         inputs = torch.clamp(inputs, min=0, max=1)
         #flatten label and prediction tensors
         inputs = inputs.view(-1)
