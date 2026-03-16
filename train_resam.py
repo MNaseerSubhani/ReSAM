@@ -267,7 +267,7 @@ def train_resam(cfg: Box, fabric: L.Fabric, model: Model, optimizer: _FabricOpti
 
                 optimizer.step()
                 scheduler.step()
-                update_teacher_ema(model, teacher_model, alpha=0.999)
+                update_teacher_ema(model, teacher_model, alpha=0.999) 
                 optimizer.zero_grad()
                 torch.cuda.empty_cache()
                 del  prompts, soft_masks
