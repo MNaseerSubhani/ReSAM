@@ -135,9 +135,9 @@ def train_resam(cfg: Box, fabric: L.Fabric, model: Model, optimizer: _FabricOpti
             img_path = item[-1]  # last element is image path
             analyze_img_paths.append(img_path)
 
-    teacher_model = copy.deepcopy(model)
-    for param in teacher_model.parameters():
-        param.requires_grad = False  # Teacher doesn't learn via backprop
+    # teacher_model = copy.deepcopy(model)
+    # for param in teacher_model.parameters():
+    #     param.requires_grad = False  # Teacher doesn't learn via backprop
 
     for epoch in range(1, cfg.num_epochs + 1):
         batch_time = AverageMeter()
@@ -148,7 +148,7 @@ def train_resam(cfg: Box, fabric: L.Fabric, model: Model, optimizer: _FabricOpti
         total_losses = AverageMeter()
         sim_losses = AverageMeter()
         end = time.time()
-        # teacher_model = copy.deepcopy(model)
+        teacher_model = copy.deepcopy(model)
         for iter, data in enumerate(train_dataloader):
             
             data_time.update(time.time() - end)
@@ -267,7 +267,7 @@ def train_resam(cfg: Box, fabric: L.Fabric, model: Model, optimizer: _FabricOpti
 
                 optimizer.step()
                 scheduler.step()
-                update_teacher_ema(model, teacher_model, alpha=0.999) 
+                # update_teacher_ema(model, teacher_model, alpha=0.999) 
                 optimizer.zero_grad()
                 torch.cuda.empty_cache()
                 del  prompts, soft_masks
