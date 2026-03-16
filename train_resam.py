@@ -25,7 +25,7 @@ from lightning.fabric.fabric import _FabricOptimizer
 from box import Box
 from datasets import call_load_dataset
 from utils.model import Model
-from utils.losses import DiceLoss, FocalLoss, cosine_similarity
+from utils.losses import DiceLoss, BCELoss, cosine_similarity
 from utils.eval_utils import AverageMeter, validate, get_prompts, calc_iou
 from utils.tools import copy_model, create_csv, reduce_instances
 from utils.utils import *
@@ -80,7 +80,7 @@ def process_forward(img_tensor, prompt, model):
 
 len_q = 64
 # persistent feature queue
-feature_queue = deque(maxlen=len_q)  # keep up to 512 previous object embeddings
+feature_queue = deque(maxlen=len_q)  
 feature_queue_hard = deque(maxlen=len_q)
 analyze = False
 
@@ -88,7 +88,7 @@ def train_resam(cfg: Box, fabric: L.Fabric, model: Model, optimizer: _FabricOpti
               scheduler: _FabricOptimizer, train_dataloader: DataLoader, val_dataloader: DataLoader):
 
     watcher = LossWatcher(window=50, factor=4)
-    focal_loss = FocalLoss()
+    bce_loss = BCELoss()
     dice_loss = DiceLoss()
     best_state = copy.deepcopy(model.state_dict())
     no_improve_count = 0
@@ -128,7 +128,7 @@ def train_resam(cfg: Box, fabric: L.Fabric, model: Model, optimizer: _FabricOpti
     for epoch in range(1, cfg.num_epochs + 1):
         batch_time = AverageMeter()
         data_time = AverageMeter()
-        focal_losses = AverageMeter()
+        bce_losses = AverageMeter()
         dice_losses = AverageMeter()
         iou_losses = AverageMeter()
         total_losses = AverageMeter()
@@ -180,7 +180,7 @@ def train_resam(cfg: Box, fabric: L.Fabric, model: Model, optimizer: _FabricOpti
                 if soft_masks[0].shape[0] != pred_masks[0].shape[0]:
                     continue
                 num_masks = sum(len(pred_mask) for pred_mask in pred_masks)
-                loss_focal = torch.tensor(0., device=fabric.device)
+                loss_bce = torch.tensor(0., device=fabric.device)
                 loss_dice = torch.tensor(0., device=fabric.device)
                 loss_iou = torch.tensor(0., device=fabric.device)
                 loss_sim = torch.tensor(0., device=fabric.device)
@@ -213,7 +213,7 @@ def train_resam(cfg: Box, fabric: L.Fabric, model: Model, optimizer: _FabricOpti
                         pred_mask = F.sigmoid(pred_mask)
                         
                     
-                        loss_focal += focal_loss(pred_mask, soft_mask, num_masks)  
+                        loss_bce += bce_loss(pred_mask, soft_mask)  
                         loss_dice += dice_loss(pred_mask, soft_mask, num_masks)   
                         batch_iou = calc_iou(pred_mask, soft_mask)
                         loss_iou += F.mse_loss(iou_prediction, batch_iou, reduction='sum') / num_masks 
@@ -238,7 +238,7 @@ def train_resam(cfg: Box, fabric: L.Fabric, model: Model, optimizer: _FabricOpti
                         iou_diff = iou_soft - iou_pred
                         iou_diff_list.append(iou_diff)
 
-                loss_total =  (loss_focal  +  loss_dice  + loss_iou + 0.1*loss_sim)   
+                loss_total =  (loss_bce +  loss_dice  + loss_iou + 0.1*loss_sim)   
                 fabric.backward(loss_total)
                 if analyze:
                     if img_paths[0]  in analyze_img_paths:
@@ -263,7 +263,7 @@ def train_resam(cfg: Box, fabric: L.Fabric, model: Model, optimizer: _FabricOpti
                 batch_time.update(time.time() - end)
                 end = time.time()
 
-                focal_losses.update(loss_focal.item(), batch_size)
+                bce_losses.update(loss_bce.item(), batch_size)
                 dice_losses.update(loss_dice.item(), batch_size)
                 iou_losses.update(loss_iou.item(), batch_size)
                 total_losses.update(loss_total.item(), batch_size)
@@ -273,7 +273,7 @@ def train_resam(cfg: Box, fabric: L.Fabric, model: Model, optimizer: _FabricOpti
             if (iter + 1) % match_interval == 0:
                 fabric.print(
                     f"Epoch [{epoch}] Iter [{iter + 1}/{len(train_dataloader)}] "
-                    f"| Time {batch_time.avg:.2f}s | Focal_loss {focal_losses.avg:.4f} | Dice {dice_losses.avg:.4f} | "
+                    f"| Time {batch_time.avg:.2f}s | BCE_loss {bce_losses.avg:.4f} | Dice {dice_losses.avg:.4f} | "
                     f"IoU {iou_losses.avg:.4f} | SSA_loss {sim_losses.avg:.4f} | Total {total_losses.avg:.4f}"
                 )
 
@@ -357,11 +357,11 @@ def main(cfg: Box) -> int:
     model, optimizer = fabric.setup(model, optimizer)
 
 
-    # print('-'*100)
-    # print('\033[92mDirect test on the original SAM.\033[0m') 
-    # init_iou, _, = validate(fabric, cfg, model, val_data, name=cfg.name, epoch=0)
-    # print('-'*100)
-    # del _     
+    print('-'*100)
+    print('\033[92mDirect test on the original SAM.\033[0m') 
+    init_iou, _, = validate(fabric, cfg, model, val_data, name=cfg.name, epoch=0)
+    print('-'*100)
+    del _     
 
     
     train_resam(cfg, fabric, model, optimizer, scheduler, train_data, val_data)

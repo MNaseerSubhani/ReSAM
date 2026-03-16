@@ -29,33 +29,14 @@ GAMMA = 2
 #         return focal_loss.mean()
 
 
-class FocalLoss(nn.Module):
+class BCELoss(nn.Module):
 
     def __init__(self, weight=None, size_average=True):
         super().__init__()
 
 
-    def forward(self, inputs, targets, alpha=ALPHA, gamma=GAMMA, smooth=1):
-        # inputs = F.sigmoid(inputs)
-        # flatten tensors
-        inputs = inputs.view(-1)
-        targets = targets.view(-1)
-
-        loss = F.binary_cross_entropy(inputs, targets)
-
-        return loss
-
-
-
-
-class BCELossSimple(nn.Module):
-
-    def __init__(self):
-        super().__init__()
-
     def forward(self, inputs, targets):
-
-
+        # inputs = F.sigmoid(inputs)
         # flatten tensors
         inputs = inputs.view(-1)
         targets = targets.view(-1)
