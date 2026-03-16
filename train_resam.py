@@ -25,7 +25,7 @@ from lightning.fabric.fabric import _FabricOptimizer
 from box import Box
 from datasets import call_load_dataset
 from utils.model import Model
-from utils.losses import DiceLoss, FocalLoss, cosine_similarity
+from utils.losses import DiceLoss, BCELoss, cosine_similarity
 from utils.eval_utils import AverageMeter, validate, get_prompts, calc_iou
 from utils.tools import copy_model, create_csv, reduce_instances
 from utils.utils import *
@@ -98,7 +98,7 @@ def train_resam(cfg: Box, fabric: L.Fabric, model: Model, optimizer: _FabricOpti
               scheduler: _FabricOptimizer, train_dataloader: DataLoader, val_dataloader: DataLoader):
 
     watcher = LossWatcher(window=50, factor=4)
-    bce_loss = FocalLoss()
+    bce_loss = BCELoss()
     dice_loss = DiceLoss()
     best_state = copy.deepcopy(model.state_dict())
     no_improve_count = 0
