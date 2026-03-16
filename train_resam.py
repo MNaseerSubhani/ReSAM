@@ -213,8 +213,8 @@ def train_resam(cfg: Box, fabric: L.Fabric, model: Model, optimizer: _FabricOpti
                         pred_mask = F.sigmoid(pred_mask)
                         
                     
-                        loss_bce += bce_loss(pred_mask, soft_mask)  
-                        loss_dice += dice_loss(pred_mask, soft_mask, num_masks)   
+                        loss_bce += bce_loss(pred_mask, soft_mask)/ num_masks 
+                        loss_dice += dice_loss(pred_mask, soft_mask, num_masks)/ num_masks  
                         batch_iou = calc_iou(pred_mask, soft_mask)
                         loss_iou += F.mse_loss(iou_prediction, batch_iou, reduction='sum') / num_masks 
 
@@ -238,7 +238,7 @@ def train_resam(cfg: Box, fabric: L.Fabric, model: Model, optimizer: _FabricOpti
                         iou_diff = iou_soft - iou_pred
                         iou_diff_list.append(iou_diff)
 
-                loss_total =  (3*loss_bce +  loss_dice  + loss_iou + 0.1*loss_sim)   
+                loss_total =  (loss_bce +  loss_dice  + loss_iou + 0.1*loss_sim)   
                 fabric.backward(loss_total)
                 if analyze:
                     if img_paths[0]  in analyze_img_paths:
