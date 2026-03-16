@@ -91,14 +91,14 @@ def train_resam(cfg: Box, fabric: L.Fabric, model: Model, optimizer: _FabricOpti
               scheduler: _FabricOptimizer, train_dataloader: DataLoader, val_dataloader: DataLoader):
 
     watcher = LossWatcher(window=50, factor=4)
-    bce_loss = FocalLoss()
+    focal_loss = FocalLoss()
     dice_loss = DiceLoss()
     best_state = copy.deepcopy(model.state_dict())
     no_improve_count = 0
     max_patience = cfg.get("patience", 3)
     match_interval = cfg.match_interval
     eval_interval = len(train_dataloader)
-    
+
 
     # embedding_queue = []
     iter_mem_usage = []
@@ -206,7 +206,7 @@ def train_resam(cfg: Box, fabric: L.Fabric, model: Model, optimizer: _FabricOpti
                     continue
 
                 num_masks = sum(len(pred_mask) for pred_mask in pred_masks)
-                loss_bce = torch.tensor(0., device=fabric.device)
+                loss_focal = torch.tensor(0., device=fabric.device)
                 loss_dice = torch.tensor(0., device=fabric.device)
                 loss_iou = torch.tensor(0., device=fabric.device)
                 loss_sim = torch.tensor(0., device=fabric.device)
@@ -218,8 +218,8 @@ def train_resam(cfg: Box, fabric: L.Fabric, model: Model, optimizer: _FabricOpti
                 if len(feature_queue) == len_q:
                     batch_feats = F.normalize(torch.stack(batch_feats, dim=0), dim=1)
                     batch_feats_hard = F.normalize(torch.stack(batch_feats_hard, dim=0), dim=1)
-                    loss_sim = similarity_loss(feature_queue_hard,feature_queue)
-                    # loss_sim = similarity_loss(batch_feats_hard, batch_feats)
+                    # loss_sim = similarity_loss(feature_queue_hard,feature_queue)
+                    loss_sim = similarity_loss(batch_feats_hard, batch_feats)
                     loss_sim = torch.tensor(0., device=batch_feats.device) if loss_sim == -1 else loss_sim
                     feature_queue.extend([f.detach() for f in batch_feats])
                     feature_queue_hard.extend([f.detach() for f in batch_feats_hard])
@@ -243,7 +243,7 @@ def train_resam(cfg: Box, fabric: L.Fabric, model: Model, optimizer: _FabricOpti
                         pred_mask = F.sigmoid(pred_mask)
                         
                     
-                        loss_bce += bce_loss(pred_mask, soft_mask, num_masks)  
+                        loss_focal += focal_loss(pred_mask, soft_mask, num_masks)  
                         loss_dice += dice_loss(pred_mask, soft_mask, num_masks)   
                         batch_iou = calc_iou(pred_mask, soft_mask)
                         loss_iou += F.mse_loss(iou_prediction, batch_iou, reduction='sum') / num_masks 
@@ -270,12 +270,12 @@ def train_resam(cfg: Box, fabric: L.Fabric, model: Model, optimizer: _FabricOpti
 
      
                 # loss_dice = loss_dice / num_masks
-                # loss_bce = loss_bce / num_masks
+                # loss_focal = loss_focal / num_masks
                 # loss_sim  = loss_sim
                 # loss_iou = loss_iou/num_masks
                 
                 # beta = (4 / (1 + math.exp(-1.0 * (epoch - ((cfg.num_epochs + 1) / 2)))))
-                loss_total =  (loss_bce  +  loss_dice  + loss_iou + 0.1*loss_sim)   
+                loss_total =  (loss_focal  +  loss_dice  + loss_iou + 0.1*loss_sim)   
 
 
                 fabric.backward(loss_total)
@@ -303,7 +303,7 @@ def train_resam(cfg: Box, fabric: L.Fabric, model: Model, optimizer: _FabricOpti
                 batch_time.update(time.time() - end)
                 end = time.time()
 
-                focal_losses.update(loss_bce.item(), batch_size)
+                focal_losses.update(loss_focal.item(), batch_size)
                 dice_losses.update(loss_dice.item(), batch_size)
                 iou_losses.update(loss_iou.item(), batch_size)
                 total_losses.update(loss_total.item(), batch_size)
@@ -313,7 +313,7 @@ def train_resam(cfg: Box, fabric: L.Fabric, model: Model, optimizer: _FabricOpti
             if (iter + 1) % match_interval == 0:
                 fabric.print(
                     f"Epoch [{epoch}] Iter [{iter + 1}/{len(train_dataloader)}] "
-                    f"| Time {batch_time.avg:.2f}s | BCE_loss {focal_losses.avg:.4f} | Dice {dice_losses.avg:.4f} | "
+                    f"| Time {batch_time.avg:.2f}s | Focal_loss {focal_losses.avg:.4f} | Dice {dice_losses.avg:.4f} | "
                     f"IoU {iou_losses.avg:.4f} | SSA_loss {sim_losses.avg:.4f} | Total {total_losses.avg:.4f}"
                 )
 

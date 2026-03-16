@@ -30,21 +30,21 @@ class FocalLoss(nn.Module):
 
 
 
-class BCELossSimple(nn.Module):
+# class BCELossSimple(nn.Module):
 
-    def __init__(self):
-        super().__init__()
+#     def __init__(self):
+#         super().__init__()
 
-    def forward(self, inputs, targets):
+#     def forward(self, inputs, targets):
 
 
-        # flatten tensors
-        inputs = inputs.view(-1)
-        targets = targets.view(-1)
+#         # flatten tensors
+#         inputs = inputs.view(-1)
+#         targets = targets.view(-1)
 
-        loss = F.binary_cross_entropy(inputs, targets)
+#         loss = F.binary_cross_entropy(inputs, targets)
 
-        return loss
+#         return loss
 
 
 
