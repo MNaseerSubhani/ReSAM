@@ -533,7 +533,7 @@ def update_teacher_ema(student_model, teacher_model, alpha=0.999):
 
 
 
-len_q = 32
+len_q = 64
 # persistent feature queue
 feature_queue = deque(maxlen=len_q)  # keep up to 512 previous object embeddings
 feature_queue_hard = deque(maxlen=len_q)
