@@ -1040,7 +1040,7 @@ def train_resam(cfg: Box, fabric: L.Fabric, model: Model, optimizer: _FabricOpti
                 for i,  (pred, ent) in enumerate( zip(pred_binary, entropy_maps)):
             
                     pred_w_overlap = ((pred[0]*invert_overlap_map[0]  ) )#    * ((1 - 0.1 * ent[0]))
-                    ys, xs = torch.where(pred_w_overlap > 0.5)
+                    ys, xs = torch.where(pred_w_overlap > 0.)
                     if len(xs) > 0 and len(ys) > 0:
                         x_min, x_max = xs.min().item(), xs.max().item()
                         y_min, y_max = ys.min().item(), ys.max().item()
@@ -1132,12 +1132,7 @@ def train_resam(cfg: Box, fabric: L.Fabric, model: Model, optimizer: _FabricOpti
                         iou_diff_list.append(iou_diff)
 
      
-                # loss_dice = loss_dice / num_masks
-                # loss_bce = loss_bce / num_masks
-                # loss_sim  = loss_sim
-                # loss_iou = loss_iou/num_masks
-                
-                # beta = (4 / (1 + math.exp(-1.0 * (epoch - ((cfg.num_epochs + 1) / 2)))))
+    
                 loss_total =  (loss_bce  +  loss_dice  + loss_iou + 0.1*loss_sim)   
 
 
