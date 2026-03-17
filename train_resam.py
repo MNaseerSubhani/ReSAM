@@ -942,7 +942,7 @@ def process_forward(img_tensor, prompt, model):
         
 
 
-len_q = 64
+len_q = 128
 # persistent feature queue
 feature_queue = deque(maxlen=len_q)  # keep up to 512 previous object embeddings
 feature_queue_hard = deque(maxlen=len_q)
@@ -1133,7 +1133,7 @@ def train_resam(cfg: Box, fabric: L.Fabric, model: Model, optimizer: _FabricOpti
 
      
     
-                loss_total =  (loss_bce+ loss_dice  + loss_iou + 0.1*loss_sim)   
+                loss_total =  (loss_bce + loss_dice  + loss_iou + 0.1*loss_sim)   
 
 
                 fabric.backward(loss_total)
