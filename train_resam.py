@@ -532,13 +532,10 @@ def update_teacher_ema(student_model, teacher_model, alpha=0.999):
         t_param.data.mul_(alpha).add_(s_param.data, alpha=1.0 - alpha)
 
 
-
 len_q = 64
 # persistent feature queue
 feature_queue = deque(maxlen=len_q)  # keep up to 512 previous object embeddings
 feature_queue_hard = deque(maxlen=len_q)
-
-
 
 analyze = False
 
@@ -583,10 +580,6 @@ def train_resam(cfg: Box, fabric: L.Fabric, model: Model, optimizer: _FabricOpti
             img_path = item[-1]  # last element is image path
             analyze_img_paths.append(img_path)
 
-    teacher_model = copy.deepcopy(model)
-    for param in teacher_model.parameters():
-        param.requires_grad = False  # Teacher doesn't learn via backprop
-
     for epoch in range(1, cfg.num_epochs + 1):
         batch_time = AverageMeter()
         data_time = AverageMeter()
@@ -596,7 +589,7 @@ def train_resam(cfg: Box, fabric: L.Fabric, model: Model, optimizer: _FabricOpti
         total_losses = AverageMeter()
         sim_losses = AverageMeter()
         end = time.time()
-        # teacher_model = copy.deepcopy(model)
+        teacher_model = copy.deepcopy(model)
         for iter, data in enumerate(train_dataloader):
             
             data_time.update(time.time() - end)
@@ -607,13 +600,16 @@ def train_resam(cfg: Box, fabric: L.Fabric, model: Model, optimizer: _FabricOpti
             for j in range(0, len(gt_masks[0]), step_size):
                 gt_masks_new = gt_masks[0][j:j+step_size].unsqueeze(0)
                 prompts = get_prompts(cfg, bboxes, gt_masks_new)
-
                 batch_size = images_weak.size(0)
+
                 entropy_maps, preds = process_forward(images_weak, prompts, teacher_model)
                 pred_stack = torch.stack(preds, dim=0)
                 entropy_maps = torch.stack(entropy_maps, dim=0)
+
+
                 confidence_map = 1 - entropy_maps  # higher is more confident
-                pred_binary = ((pred_stack * confidence_map )> 0.5).float()
+                # pred_binary = ((pred_stack * confidence_map )> 0.5).float()
+                pred_binary = ((pred_stack  )> 0.7).float()
                 overlap_count = pred_binary.sum(dim=0)
                 overlap_map = (overlap_count > 1).float()
                 invert_overlap_map = 1.0 - overlap_map
@@ -714,7 +710,6 @@ def train_resam(cfg: Box, fabric: L.Fabric, model: Model, optimizer: _FabricOpti
 
                 optimizer.step()
                 scheduler.step()
-                update_teacher_ema(model, teacher_model, alpha=0.999) 
                 optimizer.zero_grad()
                 torch.cuda.empty_cache()
                 del  prompts, soft_masks
