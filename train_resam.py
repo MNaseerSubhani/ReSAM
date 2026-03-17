@@ -519,7 +519,18 @@ def process_forward(img_tensor, prompt, model):
         pred_ins.append(p)
 
     return entropy_maps, pred_ins
-        
+
+
+@torch.no_grad()
+def update_teacher_ema(student_model, teacher_model, alpha=0.999):
+    """
+    In-place update of teacher model weights using EMA.
+    """
+    # Use zip to iterate through both models' parameters simultaneously
+    for s_param, t_param in zip(student_model.parameters(), teacher_model.parameters()):
+        # Formula: teacher = alpha * teacher + (1 - alpha) * student
+        t_param.data.mul_(alpha).add_(s_param.data, alpha=1.0 - alpha)
+
 
 
 len_q = 32
@@ -556,7 +567,7 @@ def train_resam(cfg: Box, fabric: L.Fabric, model: Model, optimizer: _FabricOpti
     fabric.print(f"Training enabled. Logging to: {csv_path}")
 
     eps = 1e-8
-    # entropy_means = deque(maxlen=len(train_dataloader))
+
     step_size = 50
     if analyze:
         iou_diff_list=[]
@@ -572,6 +583,10 @@ def train_resam(cfg: Box, fabric: L.Fabric, model: Model, optimizer: _FabricOpti
             img_path = item[-1]  # last element is image path
             analyze_img_paths.append(img_path)
 
+    teacher_model = copy.deepcopy(model)
+    for param in teacher_model.parameters():
+        param.requires_grad = False  # Teacher doesn't learn via backprop
+
     for epoch in range(1, cfg.num_epochs + 1):
         batch_time = AverageMeter()
         data_time = AverageMeter()
@@ -581,7 +596,7 @@ def train_resam(cfg: Box, fabric: L.Fabric, model: Model, optimizer: _FabricOpti
         total_losses = AverageMeter()
         sim_losses = AverageMeter()
         end = time.time()
-        teacher_model = copy.deepcopy(model)
+        # teacher_model = copy.deepcopy(model)
         for iter, data in enumerate(train_dataloader):
             
             data_time.update(time.time() - end)
@@ -591,57 +606,34 @@ def train_resam(cfg: Box, fabric: L.Fabric, model: Model, optimizer: _FabricOpti
             step_size = 50
             for j in range(0, len(gt_masks[0]), step_size):
                 gt_masks_new = gt_masks[0][j:j+step_size].unsqueeze(0)
-
-
                 prompts = get_prompts(cfg, bboxes, gt_masks_new)
 
                 batch_size = images_weak.size(0)
-
                 entropy_maps, preds = process_forward(images_weak, prompts, teacher_model)
-                
                 pred_stack = torch.stack(preds, dim=0)
                 entropy_maps = torch.stack(entropy_maps, dim=0)
-
-
-                
                 confidence_map = 1 - entropy_maps  # higher is more confident
                 pred_binary = ((pred_stack * confidence_map )> 0.5).float()
-          
-          
                 overlap_count = pred_binary.sum(dim=0)
                 overlap_map = (overlap_count > 1).float()
                 invert_overlap_map = 1.0 - overlap_map
-
-      
-
-
                 bboxes = []
 
                 for i,  (pred, ent) in enumerate( zip(pred_binary, entropy_maps)):
-            
                     pred_w_overlap = ((pred[0]*invert_overlap_map[0]  ) )#    * ((1 - 0.1 * ent[0]))
                     ys, xs = torch.where(pred_w_overlap > 0.5)
                     if len(xs) > 0 and len(ys) > 0:
                         x_min, x_max = xs.min().item(), xs.max().item()
                         y_min, y_max = ys.min().item(), ys.max().item()
-
                         bboxes.append(torch.tensor([x_min, y_min , x_max, y_max], dtype=torch.float32))
-
-                    
                 if len(bboxes) == 0:
-                    continue  # skip if no valid region
-
-            
+                    continue  # skip if no valid region            
                 bboxes = torch.stack(bboxes)
 
                 with torch.no_grad():
                     embeddings, soft_masks, _, _ = teacher_model(images_weak, bboxes.unsqueeze(0))
-
-
                 hard_embeddings, pred_masks, iou_predictions, _= model(images_strong, prompts)
                 del _
-
-
                 if len(bboxes) == 0:
                     continue  # skip if no valid region
 
@@ -656,13 +648,11 @@ def train_resam(cfg: Box, fabric: L.Fabric, model: Model, optimizer: _FabricOpti
 
                 batch_feats = [get_bbox_feature(embeddings, bbox) for bbox in bboxes]
                 batch_feats_hard = [get_bbox_feature(hard_embeddings, bbox) for bbox in bboxes]
-            
-                
+             
                 if len(feature_queue) == len_q:
                     batch_feats = F.normalize(torch.stack(batch_feats, dim=0), dim=1)
                     batch_feats_hard = F.normalize(torch.stack(batch_feats_hard, dim=0), dim=1)
                     loss_sim = similarity_loss(feature_queue_hard,feature_queue)
-                    # loss_sim = similarity_loss(batch_feats_hard, batch_feats)
                     loss_sim = torch.tensor(0., device=batch_feats.device) if loss_sim == -1 else loss_sim
                     feature_queue.extend([f.detach() for f in batch_feats])
                     feature_queue_hard.extend([f.detach() for f in batch_feats_hard])
@@ -673,10 +663,7 @@ def train_resam(cfg: Box, fabric: L.Fabric, model: Model, optimizer: _FabricOpti
                     feature_queue_hard.extend([f.detach() for f in batch_feats_hard])
                     
                     loss_sim = torch.tensor(0., device=fabric.device)
-
-        
                 batch_feats = []  
-
 
                 for i, (pred_mask, soft_mask, iou_prediction) in enumerate(
                         zip(pred_masks, soft_masks, iou_predictions  )
@@ -685,7 +672,6 @@ def train_resam(cfg: Box, fabric: L.Fabric, model: Model, optimizer: _FabricOpti
                         soft_mask = (soft_mask > 0.).float()
                         pred_mask = F.sigmoid(pred_mask)
                         
-                    
                         loss_bce += bce_loss(pred_mask, soft_mask, num_masks)  
                         loss_dice += dice_loss(pred_mask, soft_mask, num_masks)   
                         batch_iou = calc_iou(pred_mask, soft_mask)
@@ -706,18 +692,10 @@ def train_resam(cfg: Box, fabric: L.Fabric, model: Model, optimizer: _FabricOpti
                     if pred_masks_sig.shape[0] ==soft_masks_sig.shape[0]:
                         iou_pred = calculate_iou(gt_masks_bin, pred_masks_sig).item()
                         iou_soft = calculate_iou(gt_masks_bin, soft_masks_sig).item()
-
                         # Difference: positive if pred_stack improves over soft_mask
                         iou_diff = iou_soft - iou_pred
                         iou_diff_list.append(iou_diff)
 
-     
-                # loss_dice = loss_dice / num_masks
-                # loss_bce = loss_bce / num_masks
-                # loss_sim  = loss_sim
-                # loss_iou = loss_iou/num_masks
-                
-                # beta = (4 / (1 + math.exp(-1.0 * (epoch - ((cfg.num_epochs + 1) / 2)))))
                 loss_total =  (loss_bce  +  loss_dice  + loss_iou + 0.1*loss_sim)   
 
 
@@ -736,6 +714,7 @@ def train_resam(cfg: Box, fabric: L.Fabric, model: Model, optimizer: _FabricOpti
 
                 optimizer.step()
                 scheduler.step()
+                update_teacher_ema(model, teacher_model, alpha=0.999) 
                 optimizer.zero_grad()
                 torch.cuda.empty_cache()
                 del  prompts, soft_masks
