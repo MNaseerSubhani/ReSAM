@@ -305,7 +305,7 @@ def train_resam(cfg: Box, fabric: L.Fabric, model: Model, optimizer: _FabricOpti
             if (iter + 1) % match_interval == 0:
                 fabric.print(
                     f"Epoch [{epoch}] Iter [{iter + 1}/{len(train_dataloader)}] "
-                    f"| Time {batch_time.avg:.2f}s | BCE_loss {focal_losses.avg:.4f} | Dice {dice_losses.avg:.4f} | "
+                    f"| Time {batch_time.avg:.2f}s | Focal_loss {focal_losses.avg:.4f} | Dice {dice_losses.avg:.4f} | "
                     f"IoU {iou_losses.avg:.4f} | SSA_loss {sim_losses.avg:.4f} | Total {total_losses.avg:.4f}"
                 )
 
