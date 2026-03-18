@@ -28,13 +28,11 @@ base_config = {
         "jpeg_compression",
     ],
     "model": {
-        "backend": "sam",  # one of: sam, sam2
-        "type": "vit_b",   # for sam: vit_b  for sam2:  sam2.1_hiera_b+
+        "backend": "sam",  
+        "type": "vit_b",   
         "checkpoint": "./pretrain/",
         "ckpt": "",
-        # SAM2-specific optional config path and hydra overrides
-        "sam2_config": "",  # e.g., configs/sam2.1/sam2.1_hiera_b+.yaml
-        "sam2_overrides": [],
+
         "freeze": {
             "image_encoder": True,
             "prompt_encoder": True,
