@@ -15,6 +15,7 @@ from box import Box
 from utils.model import Model
 from utils.sample_utils import get_point_prompts
 from utils.tools import write_csv
+from sam2.sam2_image_predictor import SAM2ImagePredictor
 
 
 class AverageMeter:
@@ -132,17 +133,12 @@ def validate(fabric: L.Fabric, cfg: Box, model: Model, val_dataloader: DataLoade
     return ious.avg, f1_scores.avg
 
 
-
-
-
-from sam2.sam2_image_predictor import SAM2ImagePredictor
 def validate_sam2(fabric: L.Fabric, cfg: Box, model: Model, val_dataloader: DataLoader, name: str, epoch: int = 0):
     model.eval()
     ious = AverageMeter()
     f1_scores = AverageMeter()
     recall = AverageMeter()
     precision = AverageMeter()
-
     # create predictor
     predictor = SAM2ImagePredictor(model)
     with torch.no_grad():
