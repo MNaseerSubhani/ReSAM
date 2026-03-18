@@ -462,7 +462,7 @@ def process_forward(img_tensor, prompt, model):
         
 
 
-len_q = 128
+len_q = 256
 # persistent feature queue
 feature_queue = deque(maxlen=len_q)  # keep up to 512 previous object embeddings
 feature_queue_hard = deque(maxlen=len_q)
@@ -597,7 +597,7 @@ def train_resam(cfg: Box, fabric: L.Fabric, model: Model, optimizer: _FabricOpti
                         loss_focal += focal_loss(pred_mask, soft_mask)  
                         loss_dice += dice_loss(pred_mask, soft_mask)   
                         batch_iou = calc_iou(pred_mask, soft_mask)
-                        loss_iou += F.mse_loss(iou_prediction, batch_iou, reduction='sum')  
+                        loss_iou += F.mse_loss(iou_prediction, batch_iou, reduction='sum') / num_masks 
 
                 del  pred_masks, iou_predictions 
                 del pred_stack, overlap_map, invert_overlap_map
