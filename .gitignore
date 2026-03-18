@@ -127,6 +127,6 @@ dmypy.json
 tmp
 data/
 entropy_sorted/
-pretrain/
+pretrain/*.pth
 work_dir/
 
