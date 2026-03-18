@@ -4,7 +4,7 @@ prompt="point"
 load_type="soft"
 num_points_list=(3)
 
-script_name="${1}.py"
+script_name="train_${1}.py"
 
 output_dirs=("work_dir/nwpu/${1}")
 # Check if the file actually exists before running
