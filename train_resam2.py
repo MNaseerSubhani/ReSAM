@@ -25,7 +25,7 @@ from lightning.fabric.fabric import _FabricOptimizer
 from box import Box
 from datasets import call_load_dataset
 from utils.model import Model
-from utils.losses import DiceLoss, FocalLoss, Matching_Loss, cosine_similarity
+from utils.losses import DiceLoss, FocalLoss, cosine_similarity
 from utils.eval_utils import AverageMeter, validate, get_prompts, calc_iou, validate_sam2
 from utils.tools import copy_model, create_csv, reduce_instances
 from utils.utils import *
@@ -165,7 +165,7 @@ def pass_for_training(img_tensor, prompts, predictor):
 
 
 
-def train_sam2(
+def train_resam(
     cfg: Box,
     fabric: L.Fabric,
     model: Model,
@@ -397,7 +397,7 @@ def main(cfg: Box) -> int:
     # del _     
 
 
-    train_sam2(cfg, fabric, model, optimizer, scheduler, train_data, val_data, pt_data)
+    train_resam(cfg, fabric, model, optimizer, scheduler, train_data, val_data, pt_data)
 
     del model, train_data, val_data
 
