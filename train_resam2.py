@@ -35,6 +35,8 @@ import torch
 import torch.nn.functional as F
 from collections import deque
 
+import matplotlib. pyplot as plt
+
 
 
 
@@ -46,9 +48,8 @@ model_cfg = "./configs/sam2/sam2_hiera_b+.yaml"
 checkpoint = "./pretrain/sam2_hiera_base_plus.pt"
 
 
-
+eps=1e-8
 def sam2forward(img_tensor, prompts ,predictor):
-    
     images = img_tensor[0].permute(1, 2, 0).cpu().numpy()
     with torch.no_grad():
         predictor.set_image(images)
@@ -56,20 +57,18 @@ def sam2forward(img_tensor, prompts ,predictor):
         pred_masks = []
         for i in range(prompts[0][0].shape[0]):
             mask_tuple, scores, logits = predictor.predict(
-                point_coords=prompts[0][0][i].unsqueeze(0),      # single point
+                point_coords=prompts[0][0][i].unsqueeze(0),      
                 point_labels=prompts[0][1][i].unsqueeze(0),      
-                multimask_output=False           # only 1 mask
+                multimask_output=False           
             )
-
             logits_full = F.interpolate(torch.tensor(logits).unsqueeze(0), size=(1024, 1024), mode='bilinear', align_corners=False)
-            soft_mask_full = torch.sigmoid(logits_full[0][0])
-
-            pred_mask = torch.sigmoid(soft_mask_full)
-
-            pred_masks.append(pred_mask)
-            
-            entropy_map = entropy_map_calculate(pred_mask.unsqueeze(0))
-            entropy_maps.append(entropy_map)
+            p = torch.sigmoid(logits_full[0][0])
+      
+            entropy = - (p * torch.log(p + eps) + (1 - p) * torch.log(1 - p + eps))
+            max_ent = torch.log(torch.tensor(2.0, device=p.device))
+            entropy_norm = entropy / (max_ent + 1e-8)   # [0, 1]
+            pred_masks.append(p)
+            entropy_maps.append(entropy_norm)
     
     return entropy_maps, pred_masks
 
@@ -94,11 +93,11 @@ def sam2forward_bbox(img_tensor, prompts_boxes ,predictor):
 
 
 # #     return pred_masks, Iou_prediciton
-def pass_for_training(img_tensor, prompts, predictor):
+def model_forward(img_tensor, prompts, model):
     """
     Differentiable SAM2 forward pass for training with point prompts.
     """
-
+    predictor = SAM2ImagePredictor(model)
     device = img_tensor.device
     image = img_tensor[0].to(device)
 
@@ -362,7 +361,7 @@ def train_resam(cfg: Box, fabric: L.Fabric, model: Model, optimizer: _FabricOpti
     # entropy_means = deque(maxlen=len(train_dataloader))
     step_size = 50
 
-    predictor = SAM2ImagePredictor(model)
+    
 
     for epoch in range(1, cfg.num_epochs + 1):
         batch_time = AverageMeter()
@@ -374,6 +373,7 @@ def train_resam(cfg: Box, fabric: L.Fabric, model: Model, optimizer: _FabricOpti
         sim_losses = AverageMeter()
         end = time.time()
         teacher_model = copy.deepcopy(model)
+        predictor = SAM2ImagePredictor(teacher_model)
         for iter, data in enumerate(train_dataloader):
             
             data_time.update(time.time() - end)
@@ -387,10 +387,11 @@ def train_resam(cfg: Box, fabric: L.Fabric, model: Model, optimizer: _FabricOpti
 
                 prompts = get_prompts(cfg, bboxes, gt_masks_new)
                 batch_size = images_weak.size(0)
-                entropy_maps, preds = process_forward(images_weak, prompts, teacher_model)
+
+                entropy_maps, preds = sam2forward(images_weak, prompts, predictor)
                 pred_stack = torch.stack(preds, dim=0)
                 entropy_maps = torch.stack(entropy_maps, dim=0)
-                
+
                 confidence_map = 1 - entropy_maps  # higher is more confident
                 pred_binary = ((pred_stack * confidence_map )> 0.5).float()
                 overlap_count = pred_binary.sum(dim=0)
@@ -398,9 +399,8 @@ def train_resam(cfg: Box, fabric: L.Fabric, model: Model, optimizer: _FabricOpti
                 invert_overlap_map = 1.0 - overlap_map
 
                 bboxes = []
-
                 for i,  (pred, ent) in enumerate( zip(pred_binary, entropy_maps)):
-                    pred_w_overlap = ((pred[0]*invert_overlap_map[0]  ) )#    * ((1 - 0.1 * ent[0]))
+                    pred_w_overlap = ((pred*invert_overlap_map  ) )#    * ((1 - 0.1 * ent[0]))
                     ys, xs = torch.where(pred_w_overlap > 0.5)
                     if len(xs) > 0 and len(ys) > 0:
                         x_min, x_max = xs.min().item(), xs.max().item()
@@ -410,6 +410,28 @@ def train_resam(cfg: Box, fabric: L.Fabric, model: Model, optimizer: _FabricOpti
                 if len(bboxes) == 0:
                     continue  # skip if no valid region
                 bboxes = torch.stack(bboxes)
+
+
+
+
+                print(bboxes.shape)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
                 with torch.no_grad():
                     embeddings, soft_masks, _, _ = teacher_model(images_weak, bboxes.unsqueeze(0))

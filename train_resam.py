@@ -59,7 +59,7 @@ def process_forward(img_tensor, prompt, model):
     return entropy_maps, pred_ins
         
 
-len_q = 256
+len_q = 128
 # persistent feature queue
 feature_queue = deque(maxlen=len_q)  # keep up to 512 previous object embeddings
 feature_queue_hard = deque(maxlen=len_q)
@@ -173,6 +173,7 @@ def train_resam(cfg: Box, fabric: L.Fabric, model: Model, optimizer: _FabricOpti
 
                 batch_feats = [get_bbox_feature(embeddings, bbox) for bbox in bboxes]
                 batch_feats_hard = [get_bbox_feature(hard_embeddings, bbox) for bbox in bboxes]
+                
                 if len(feature_queue) == len_q:
                     batch_feats = F.normalize(torch.stack(batch_feats, dim=0), dim=1)
                     batch_feats_hard = F.normalize(torch.stack(batch_feats_hard, dim=0), dim=1)
