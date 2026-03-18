@@ -99,7 +99,11 @@ After downloading, move the models to the `pretrain` folder.
 ### 4.Training
 Here’s an example of training ReSAM on the NWPU dataset:
 ```bash
-bash scripts/train_resam_nwpu.sh resam  or resam2
+bash scripts/train_resam_nwpu.sh resam  1   
+```
+
+```bash
+bash scripts/train_resam_nwpu.sh resam2 1
 ```
 
 ## 💡 Acknowledgement
