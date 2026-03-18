@@ -3,10 +3,10 @@ cfg_file="configs.config_whu"
 prompt="point"
 load_type="soft"
 num_points_list=(3)
-output_dirs=("work_dir/whu/resam")
 
 script_name="${1}.py"
 
+output_dirs=("work_dir/nwpu/${1}")
 # Check if the file actually exists before running
 if [ ! -f "$script_name" ]; then
     echo "Error: File $script_name not found!"

@@ -3,9 +3,11 @@ cfg_file="configs.config_nwpu"
 prompt="point"
 load_type="soft"
 num_points_list=(3)
-output_dirs=("work_dir/nwpu/resam")
+
 
 script_name="${1}.py"
+
+output_dirs=("work_dir/nwpu/${1}")
 
 # Check if the file actually exists before running
 if [ ! -f "$script_name" ]; then
