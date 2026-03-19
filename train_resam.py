@@ -515,8 +515,8 @@ def train_resam(cfg: Box, fabric: L.Fabric, model: Model, optimizer: _FabricOpti
         total_losses = AverageMeter()
         sim_losses = AverageMeter()
         end = time.time()
-        if epoch % 2 == 1:
-            teacher_model = copy.deepcopy(model)
+
+        teacher_model = copy.deepcopy(model)
         for iter, data in enumerate(train_dataloader):
             
             data_time.update(time.time() - end)
@@ -529,7 +529,7 @@ def train_resam(cfg: Box, fabric: L.Fabric, model: Model, optimizer: _FabricOpti
                 prompts = get_prompts(cfg, bboxes, gt_masks_new)
                 batch_size = images_weak.size(0)
 
-                entropy_maps, preds = process_forward(images_weak, prompts, teacher_model)
+                entropy_maps, preds = process_forward(images_weak, prompts, model)
                 pred_stack = torch.stack(preds, dim=0)
                 entropy_maps = torch.stack(entropy_maps, dim=0)
 
