@@ -4,7 +4,7 @@ base_config = {
     "csv_keys": [ "Prompt", "IoU", "Recall", "Precision", "F1", "epoch"],
     "opt": {
         "learning_rate": 1e-5,
-        "weight_decay": 1e-5,#
+        "weight_decay": 1e-4,#
         "decay_factor": 10,
         "steps": [3000, 8000],
         "warmup_steps": 250,
