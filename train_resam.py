@@ -506,6 +506,11 @@ def train_resam(cfg: Box, fabric: L.Fabric, model: Model, optimizer: _FabricOpti
             img_path = item[-1]  # last element is image path
             analyze_img_paths.append(img_path)
 
+    teacher_model = copy.deepcopy(model)
+    teacher_model.eval()
+    for p in teacher_model.parameters():
+        p.requires_grad = False
+
     for epoch in range(1, cfg.num_epochs + 1):
         batch_time = AverageMeter()
         data_time = AverageMeter()
@@ -516,7 +521,7 @@ def train_resam(cfg: Box, fabric: L.Fabric, model: Model, optimizer: _FabricOpti
         sim_losses = AverageMeter()
         end = time.time()
 
-        teacher_model = copy.deepcopy(model)
+        # teacher_model = copy.deepcopy(model)
         for iter, data in enumerate(train_dataloader):
             
             data_time.update(time.time() - end)
@@ -529,7 +534,7 @@ def train_resam(cfg: Box, fabric: L.Fabric, model: Model, optimizer: _FabricOpti
                 prompts = get_prompts(cfg, bboxes, gt_masks_new)
                 batch_size = images_weak.size(0)
 
-                entropy_maps, preds = process_forward(images_weak, prompts, model)
+                entropy_maps, preds = process_forward(images_weak, prompts, teacher_model)
                 pred_stack = torch.stack(preds, dim=0)
                 entropy_maps = torch.stack(entropy_maps, dim=0)
 
@@ -595,14 +600,14 @@ def train_resam(cfg: Box, fabric: L.Fabric, model: Model, optimizer: _FabricOpti
                         soft_mask = (soft_mask > 0.).float()
                         pred_mask = F.sigmoid(pred_mask)
                         
-                        loss_focal += focal_loss(pred_mask, soft_mask)  
-                        loss_dice += dice_loss(pred_mask, soft_mask)   
+                        loss_focal += focal_loss(pred_mask, soft_mask)/num_masks  
+                        loss_dice += dice_loss(pred_mask, soft_mask)/num_masks   
                         batch_iou = calc_iou(pred_mask, soft_mask)
                         loss_iou += F.mse_loss(iou_prediction, batch_iou, reduction='sum') / num_masks 
 
                 del  pred_masks, iou_predictions 
                 del pred_stack, overlap_map, invert_overlap_map
-                torch.cuda.empty_cache()
+
 
                 if analyze:
                     gt_masks_bin = (gt_masks_new[0] > 0.5).float()
@@ -638,6 +643,10 @@ def train_resam(cfg: Box, fabric: L.Fabric, model: Model, optimizer: _FabricOpti
                 optimizer.step()
                 scheduler.step()
                 optimizer.zero_grad()
+
+                with torch.no_grad():
+                for t_param, s_param in zip(teacher_model.parameters(), model.parameters()):
+                    t_param.data = 0.99 * t_param.data + 0.01 * s_param.data
                 torch.cuda.empty_cache()
                 del  prompts, soft_masks
 
