@@ -622,7 +622,7 @@ def train_resam(cfg: Box, fabric: L.Fabric, model: Model, optimizer: _FabricOpti
                         iou_diff = iou_soft - iou_pred
                         iou_diff_list.append(iou_diff)
 
-                loss_total =  (loss_focal + loss_dice  + loss_iou )   
+                loss_total =  (loss_focal + loss_dice  + loss_iou + loss_sim)   
 
             
                 fabric.backward(loss_total)
