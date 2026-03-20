@@ -645,8 +645,8 @@ def train_resam(cfg: Box, fabric: L.Fabric, model: Model, optimizer: _FabricOpti
                 optimizer.zero_grad()
 
                 with torch.no_grad():
-                for t_param, s_param in zip(teacher_model.parameters(), model.parameters()):
-                    t_param.data = 0.99 * t_param.data + 0.01 * s_param.data
+                    for t_param, s_param in zip(teacher_model.parameters(), model.parameters()):
+                        t_param.data = 0.99 * t_param.data + 0.01 * s_param.data
                 torch.cuda.empty_cache()
                 del  prompts, soft_masks
 
