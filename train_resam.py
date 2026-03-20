@@ -506,6 +506,12 @@ def train_resam(cfg: Box, fabric: L.Fabric, model: Model, optimizer: _FabricOpti
             img_path = item[-1]  # last element is image path
             analyze_img_paths.append(img_path)
 
+    # Initialize teacher as a copy of the student
+    teacher_model = copy.deepcopy(model)
+    # Freeze teacher parameters
+    for param in teacher_model.parameters():
+        param.requires_grad = False
+
     for epoch in range(1, cfg.num_epochs + 1):
         batch_time = AverageMeter()
         data_time = AverageMeter()
@@ -529,12 +535,12 @@ def train_resam(cfg: Box, fabric: L.Fabric, model: Model, optimizer: _FabricOpti
                 prompts = get_prompts(cfg, bboxes, gt_masks_new)
                 batch_size = images_weak.size(0)
 
-                entropy_maps, preds = process_forward(images_weak, prompts, model)
+                entropy_maps, preds = process_forward(images_weak, prompts, teacher_model)
                 pred_stack = torch.stack(preds, dim=0)
                 entropy_maps = torch.stack(entropy_maps, dim=0)
 
                 confidence_map = 1 - entropy_maps  # higher is more confident
-                pred_binary = ((pred_stack * confidence_map )> 0.3).float()
+                pred_binary = ((pred_stack * confidence_map )> 0.5).float()
                 overlap_count = pred_binary.sum(dim=0)
                 overlap_map = (overlap_count > 1).float()
                 invert_overlap_map = 1.0 - overlap_map
@@ -553,7 +559,7 @@ def train_resam(cfg: Box, fabric: L.Fabric, model: Model, optimizer: _FabricOpti
                 bboxes_n = torch.stack(bboxes_n)
 
                 with torch.no_grad():
-                    embeddings, soft_masks, _, _ = model(images_weak, bboxes_n.unsqueeze(0))
+                    embeddings, soft_masks, _, _ = teacher_model(images_weak, bboxes_n.unsqueeze(0))
                 hard_embeddings, pred_masks, iou_predictions, _= model(images_strong, prompts)
                 del _
 
@@ -622,7 +628,7 @@ def train_resam(cfg: Box, fabric: L.Fabric, model: Model, optimizer: _FabricOpti
                         iou_diff = iou_soft - iou_pred
                         iou_diff_list.append(iou_diff)
 
-                loss_total =  (loss_focal + loss_dice  + loss_iou + loss_sim)   
+                loss_total =  (loss_focal + loss_dice  + loss_iou + 0.1*loss_sim)   
 
             
                 fabric.backward(loss_total)
@@ -640,6 +646,11 @@ def train_resam(cfg: Box, fabric: L.Fabric, model: Model, optimizer: _FabricOpti
 
                 optimizer.step()
                 scheduler.step()
+
+                with torch.no_grad():
+                    m = 0.99  
+                    for param_q, param_k in zip(model.parameters(), teacher_model.parameters()):
+                        param_k.data.mul_(m).add_((1 - m) * param_q.detach().data)
                 optimizer.zero_grad()
 
                 
