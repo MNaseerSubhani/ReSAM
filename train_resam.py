@@ -648,7 +648,7 @@ def train_resam(cfg: Box, fabric: L.Fabric, model: Model, optimizer: _FabricOpti
                 scheduler.step()
 
                 with torch.no_grad():
-                    m = 0.99  
+                    m = 0.999  
                     for param_q, param_k in zip(model.parameters(), teacher_model.parameters()):
                         param_k.data.mul_(m).add_((1 - m) * param_q.detach().data)
                 optimizer.zero_grad()
