@@ -534,7 +534,7 @@ def train_resam(cfg: Box, fabric: L.Fabric, model: Model, optimizer: _FabricOpti
                 prompts = get_prompts(cfg, bboxes, gt_masks_new)
                 batch_size = images_weak.size(0)
 
-                entropy_maps, preds = process_forward(images_weak, prompts, teacher_model)
+                entropy_maps, preds = process_forward(images_weak, prompts, model)
                 pred_stack = torch.stack(preds, dim=0)
                 entropy_maps = torch.stack(entropy_maps, dim=0)
 
@@ -558,7 +558,7 @@ def train_resam(cfg: Box, fabric: L.Fabric, model: Model, optimizer: _FabricOpti
                 bboxes_n = torch.stack(bboxes_n)
 
                 with torch.no_grad():
-                    embeddings, soft_masks, _, _ = teacher_model(images_weak, bboxes_n.unsqueeze(0))
+                    embeddings, soft_masks, _, _ = model(images_weak, bboxes_n.unsqueeze(0))
                 hard_embeddings, pred_masks, iou_predictions, _= model(images_strong, prompts)
                 del _
 
@@ -647,9 +647,7 @@ def train_resam(cfg: Box, fabric: L.Fabric, model: Model, optimizer: _FabricOpti
                 scheduler.step()
                 optimizer.zero_grad()
 
-                with torch.no_grad():
-                    for t_param, s_param in zip(teacher_model.parameters(), model.parameters()):
-                        t_param.data = 0.99 * t_param.data + 0.01 * s_param.data
+                
                 # torch.cuda.empty_cache()
                 del  prompts, soft_masks
 
