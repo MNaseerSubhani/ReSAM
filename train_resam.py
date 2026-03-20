@@ -506,11 +506,6 @@ def train_resam(cfg: Box, fabric: L.Fabric, model: Model, optimizer: _FabricOpti
             img_path = item[-1]  # last element is image path
             analyze_img_paths.append(img_path)
 
-    teacher_model = copy.deepcopy(model)
-    teacher_model.eval()
-    for p in teacher_model.parameters():
-        p.requires_grad = False
-
     for epoch in range(1, cfg.num_epochs + 1):
         batch_time = AverageMeter()
         data_time = AverageMeter()
