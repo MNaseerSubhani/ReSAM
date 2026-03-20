@@ -595,13 +595,13 @@ def train_resam(cfg: Box, fabric: L.Fabric, model: Model, optimizer: _FabricOpti
                         soft_mask = (soft_mask > 0.).float()
                         pred_mask = F.sigmoid(pred_mask)
                         
-                        loss_focal += focal_loss(pred_mask, soft_mask,num_masks)  
-                        loss_dice += dice_loss(pred_mask, soft_mask,num_masks)   
+                        loss_focal += focal_loss(pred_mask, soft_mask)  
+                        loss_dice += dice_loss(pred_mask, soft_mask)   
                         batch_iou = calc_iou(pred_mask, soft_mask)
                         loss_iou += F.mse_loss(iou_prediction, batch_iou, reduction='sum') / num_masks 
 
-                # loss_focal = loss_focal / num_masks
-                # loss_dice = loss_dice / num_masks
+                loss_focal = loss_focal / num_masks
+                loss_dice = loss_dice / num_masks
 
                 del  pred_masks, iou_predictions 
                 del pred_stack, overlap_map, invert_overlap_map
