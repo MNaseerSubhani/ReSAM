@@ -628,7 +628,7 @@ def train_resam(cfg: Box, fabric: L.Fabric, model: Model, optimizer: _FabricOpti
                         iou_diff = iou_soft - iou_pred
                         iou_diff_list.append(iou_diff)
 
-                loss_total =  (loss_focal + loss_dice  + loss_iou + 0.1*loss_sim)   
+                loss_total =  (loss_focal + loss_dice  + loss_iou + 0.05*loss_sim)   
 
             
                 fabric.backward(loss_total)
@@ -648,7 +648,7 @@ def train_resam(cfg: Box, fabric: L.Fabric, model: Model, optimizer: _FabricOpti
                 scheduler.step()
 
                 with torch.no_grad():
-                    m = 0.98  
+                    m = 0.99  
                     for param_q, param_k in zip(model.parameters(), teacher_model.parameters()):
                         param_k.data.mul_(m).add_((1 - m) * param_q.detach().data)
                 optimizer.zero_grad()
