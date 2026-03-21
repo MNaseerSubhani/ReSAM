@@ -598,7 +598,8 @@ def train_resam(cfg: Box, fabric: L.Fabric, model: Model, optimizer: _FabricOpti
                         zip(pred_masks, soft_masks, iou_predictions  )
                     ):
                    
-                        soft_mask = (soft_mask > 0.).float()
+                        # soft_mask = (soft_mask > 0.).float()
+                        soft_mask = F.sigmoid(soft_mask)
                         pred_mask = F.sigmoid(pred_mask)
                         
                         loss_focal += focal_loss(pred_mask, soft_mask)  
