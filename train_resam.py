@@ -627,6 +627,9 @@ def train_resam(cfg: Box, fabric: L.Fabric, model: Model, optimizer: _FabricOpti
                 if len(bboxes) == 0:
                     continue  # skip if no valid region
 
+                if soft_masks[0].shape[0] != pred_masks[0].shape[0]:
+                    continue
+
          
                 bboxes = torch.stack(bboxes)
 
@@ -666,7 +669,7 @@ def train_resam(cfg: Box, fabric: L.Fabric, model: Model, optimizer: _FabricOpti
                 batch_feats = []  
 
                 for i, (pred_mask, soft_mask, iou_prediction, bbox) in enumerate(
-                        zip(pred_masks[0], soft_masks[0], iou_predictions[0], bboxes  )
+                        zip(pred_masks, soft_masks, iou_predictions, bboxes  )
                     ):
                         soft_mask = (soft_mask > 0.).float()
 
@@ -675,7 +678,7 @@ def train_resam(cfg: Box, fabric: L.Fabric, model: Model, optimizer: _FabricOpti
                         loss_focal += focal_loss(pred_mask, soft_mask)  
                         loss_dice += dice_loss(pred_mask, soft_mask)   
                         batch_iou = calc_iou(pred_mask.unsqueeze(0), soft_mask.unsqueeze(0))
-                        loss_iou += F.mse_loss(iou_prediction.view(-1), batch_iou.view(-1), reduction='sum') / num_masks
+                        loss_iou += F.mse_loss(iou_prediction, batch_iou, reduction='sum') / num_masks
 
                 del  pred_masks, iou_predictions 
                 del pred_stack, overlap_map, invert_overlap_map
