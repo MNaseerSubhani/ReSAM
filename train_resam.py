@@ -507,10 +507,10 @@ def train_resam(cfg: Box, fabric: L.Fabric, model: Model, optimizer: _FabricOpti
             analyze_img_paths.append(img_path)
 
     # Initialize teacher as a copy of the student
-    teacher_model = copy.deepcopy(model)
-    # Freeze teacher parameters
-    for param in teacher_model.parameters():
-        param.requires_grad = False
+    # teacher_model = copy.deepcopy(model)
+    # # Freeze teacher parameters
+    # for param in teacher_model.parameters():
+    #     param.requires_grad = False
 
     for epoch in range(1, cfg.num_epochs + 1):
         batch_time = AverageMeter()
@@ -522,7 +522,7 @@ def train_resam(cfg: Box, fabric: L.Fabric, model: Model, optimizer: _FabricOpti
         sim_losses = AverageMeter()
         end = time.time()
 
-        # teacher_model = copy.deepcopy(model)
+        teacher_model = copy.deepcopy(model)
         for iter, data in enumerate(train_dataloader):
             
             data_time.update(time.time() - end)
@@ -650,10 +650,10 @@ def train_resam(cfg: Box, fabric: L.Fabric, model: Model, optimizer: _FabricOpti
                 optimizer.step()
                 scheduler.step()
 
-                with torch.no_grad():
-                    m = 0.99  
-                    for param_q, param_k in zip(model.parameters(), teacher_model.parameters()):
-                        param_k.data.mul_(m).add_((1 - m) * param_q.detach().data)
+                # with torch.no_grad():
+                #     m = 0.99  
+                #     for param_q, param_k in zip(model.parameters(), teacher_model.parameters()):
+                #         param_k.data.mul_(m).add_((1 - m) * param_q.detach().data)
                 optimizer.zero_grad()
 
                 
