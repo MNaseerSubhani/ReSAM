@@ -529,7 +529,7 @@ def train_resam(cfg: Box, fabric: L.Fabric, model: Model, optimizer: _FabricOpti
     no_improve_count = 0
     max_patience = cfg.get("patience", 3)
     match_interval = cfg.match_interval
-    eval_interval = 500#len(train_dataloader)
+    eval_interval = len(train_dataloader)
 
     # embedding_queue = []
     iter_mem_usage = []
@@ -627,8 +627,7 @@ def train_resam(cfg: Box, fabric: L.Fabric, model: Model, optimizer: _FabricOpti
                 if len(bboxes) == 0:
                     continue  # skip if no valid region
 
-                if soft_masks[0].shape[0] != pred_masks[0].shape[0]:
-                    continue
+                
 
          
                 bboxes = torch.stack(bboxes)
@@ -636,9 +635,14 @@ def train_resam(cfg: Box, fabric: L.Fabric, model: Model, optimizer: _FabricOpti
                 with torch.no_grad():
                     embeddings, soft_masks, _, _ = teacher_model(images_weak, bboxes.unsqueeze(0))
 
+                
+
 
                 hard_embeddings, pred_masks, iou_predictions, _= model(images_strong, prompts)
                 del _
+
+                if soft_masks[0].shape[0] != pred_masks[0].shape[0]:
+                    continue
 
                 num_masks = sum(len(pred_mask) for pred_mask in pred_masks)
                 loss_focal = torch.tensor(0., device=fabric.device)
@@ -700,7 +704,6 @@ def train_resam(cfg: Box, fabric: L.Fabric, model: Model, optimizer: _FabricOpti
                         iou_diff = iou_soft - iou_pred
                         iou_diff_list.append(iou_diff)
 
-                # loss_dist = loss_dist / num_masks
                 loss_dice = loss_dice / num_masks
                 loss_focal = loss_focal / num_masks
                 loss_sim  = loss_sim
