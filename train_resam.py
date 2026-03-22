@@ -511,8 +511,9 @@ def process_forward(img_tensor, prompt, model):
         
 
 # persistent feature queue
-feature_queue = deque(maxlen=32)  # keep up to 512 previous object embeddings
-feature_queue_hard = deque(maxlen=32)
+q_len = 128
+feature_queue = deque(maxlen=q_len)  # keep up to 512 previous object embeddings
+feature_queue_hard = deque(maxlen=q_len)
 
 
 
@@ -646,7 +647,7 @@ def train_resam(cfg: Box, fabric: L.Fabric, model: Model, optimizer: _FabricOpti
                 batch_feats_hard = [get_bbox_feature(hard_embeddings, bbox) for bbox in bboxes]
             
                 
-                if len(feature_queue) == 32:
+                if len(feature_queue) == q_len:
                     batch_feats = F.normalize(torch.stack(batch_feats, dim=0), dim=1)
                     batch_feats_hard = F.normalize(torch.stack(batch_feats_hard, dim=0), dim=1)
                     loss_sim = similarity_loss(feature_queue_hard,feature_queue)
@@ -702,7 +703,7 @@ def train_resam(cfg: Box, fabric: L.Fabric, model: Model, optimizer: _FabricOpti
                 loss_sim  = loss_sim
                 
                 beta = (4 / (1 + math.exp(-1.0 * (epoch - ((cfg.num_epochs + 1) / 2)))))
-                loss_total =  (20 * loss_focal +  loss_dice  + loss_iou)# + 0.1*loss_sim)   
+                loss_total =  (20 * loss_focal +  loss_dice  + loss_iou + 0.1*loss_sim)   
 
                 if watcher.is_outlier(loss_total):
                     continue
