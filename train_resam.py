@@ -559,6 +559,12 @@ def train_resam(cfg: Box, fabric: L.Fabric, model: Model, optimizer: _FabricOpti
             img_path = item[-1]  # last element is image path
             analyze_img_paths.append(img_path)
 
+    # Initialize teacher as a copy of the student
+    teacher_model = copy.deepcopy(model)
+    # Freeze teacher parameters
+    for param in teacher_model.parameters():
+        param.requires_grad = False
+
     for epoch in range(1, cfg.num_epochs + 1):
         batch_time = AverageMeter()
         data_time = AverageMeter()
@@ -568,6 +574,7 @@ def train_resam(cfg: Box, fabric: L.Fabric, model: Model, optimizer: _FabricOpti
         total_losses = AverageMeter()
         sim_losses = AverageMeter()
         end = time.time()
+
 
      
         for iter, data in enumerate(train_dataloader):
@@ -585,7 +592,7 @@ def train_resam(cfg: Box, fabric: L.Fabric, model: Model, optimizer: _FabricOpti
 
                 batch_size = images_weak.size(0)
 
-                entropy_maps, preds = process_forward(images_weak, prompts, model)
+                entropy_maps, preds = process_forward(images_weak, prompts, teacher_model)
                 
                 pred_stack = torch.stack(preds, dim=0)
                 entropy_maps = torch.stack(entropy_maps, dim=0)
@@ -623,7 +630,7 @@ def train_resam(cfg: Box, fabric: L.Fabric, model: Model, optimizer: _FabricOpti
                 bboxes = torch.stack(bboxes)
 
                 with torch.no_grad():
-                    embeddings, soft_masks, _, _ = model(images_weak, bboxes.unsqueeze(0))
+                    embeddings, soft_masks, _, _ = teacher_model(images_weak, bboxes.unsqueeze(0))
 
 
                 hard_embeddings, pred_masks, iou_predictions, _= model(images_strong, prompts)
@@ -714,6 +721,11 @@ def train_resam(cfg: Box, fabric: L.Fabric, model: Model, optimizer: _FabricOpti
 
                 optimizer.step()
                 scheduler.step()
+
+                with torch.no_grad():
+                    m = 0.99  
+                    for param_q, param_k in zip(model.parameters(), teacher_model.parameters()):
+                        param_k.data.mul_(m).add_((1 - m) * param_q.detach().data)
                 optimizer.zero_grad()
                 torch.cuda.empty_cache()
                 del  prompts, soft_masks
