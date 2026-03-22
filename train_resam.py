@@ -726,7 +726,7 @@ def train_resam(cfg: Box, fabric: L.Fabric, model: Model, optimizer: _FabricOpti
                 optimizer.step()
                 scheduler.step()
                 optimizer.zero_grad()
-                torch.cuda.empty_cache()
+                # torch.cuda.empty_cache()
                 del  prompts, soft_masks
 
                 curr_mem = torch.cuda.memory_allocated() / 1024**3
