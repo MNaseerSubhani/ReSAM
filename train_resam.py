@@ -1,6 +1,6 @@
 
 import os
-os.environ["CUDA_VISIBLE_DEVICES"] = "0"
+os.environ["CUDA_VISIBLE_DEVICES"] = "2"
 
 # import time
 # import argparse
@@ -621,6 +621,8 @@ def train_resam(cfg: Box, fabric: L.Fabric, model: Model, optimizer: _FabricOpti
 
                 batch_feats = [get_bbox_feature(embeddings, bbox) for bbox in bboxes]
                 batch_feats_hard = [get_bbox_feature(hard_embeddings, bbox) for bbox in bboxes]
+            
+
                 if len(feature_queue) == q_len:
                     batch_feats = F.normalize(torch.stack(batch_feats, dim=0), dim=1)
                     batch_feats_hard = F.normalize(torch.stack(batch_feats_hard, dim=0), dim=1)
@@ -633,14 +635,17 @@ def train_resam(cfg: Box, fabric: L.Fabric, model: Model, optimizer: _FabricOpti
                     batch_feats_hard = F.normalize(torch.stack(batch_feats_hard, dim=0), dim=1)
                     feature_queue.extend([f.detach() for f in batch_feats])
                     feature_queue_hard.extend([f.detach() for f in batch_feats_hard])
+                    
                     loss_sim = torch.tensor(0., device=fabric.device)
 
 
                 batch_feats = []  
+
                 for i, (pred_mask, soft_mask, iou_prediction, bbox) in enumerate(
                         zip(pred_masks[0], soft_masks[0], iou_predictions[0], bboxes  )
                     ):
                         soft_mask = (soft_mask > 0.).float()
+
                         pred_mask = F.sigmoid(pred_mask)
                     
                         loss_focal += focal_loss(pred_mask, soft_mask)  
@@ -668,10 +673,12 @@ def train_resam(cfg: Box, fabric: L.Fabric, model: Model, optimizer: _FabricOpti
                         iou_diff = iou_soft - iou_pred
                         iou_diff_list.append(iou_diff)
 
+                # loss_dist = loss_dist / num_masks
                 loss_dice = loss_dice / num_masks
                 loss_focal = loss_focal / num_masks
                 loss_iou  = loss_iou / num_masks
                 
+
                 loss_total =  (loss_focal +  loss_dice  + 0.1*loss_iou + 0.1*loss_sim)   
 
                 # if watcher.is_outlier(loss_total):
