@@ -529,7 +529,7 @@ def train_resam(cfg: Box, fabric: L.Fabric, model: Model, optimizer: _FabricOpti
     no_improve_count = 0
     max_patience = cfg.get("patience", 3)
     match_interval = cfg.match_interval
-    eval_interval = len(train_dataloader)
+    eval_interval = 500#len(train_dataloader)
 
     # embedding_queue = []
     iter_mem_usage = []
@@ -627,22 +627,15 @@ def train_resam(cfg: Box, fabric: L.Fabric, model: Model, optimizer: _FabricOpti
                 if len(bboxes) == 0:
                     continue  # skip if no valid region
 
-                
-
          
                 bboxes = torch.stack(bboxes)
 
                 with torch.no_grad():
                     embeddings, soft_masks, _, _ = teacher_model(images_weak, bboxes.unsqueeze(0))
 
-                
-
 
                 hard_embeddings, pred_masks, iou_predictions, _= model(images_strong, prompts)
                 del _
-
-                if soft_masks[0].shape[0] != pred_masks[0].shape[0]:
-                    continue
 
                 num_masks = sum(len(pred_mask) for pred_mask in pred_masks)
                 loss_focal = torch.tensor(0., device=fabric.device)
@@ -652,6 +645,9 @@ def train_resam(cfg: Box, fabric: L.Fabric, model: Model, optimizer: _FabricOpti
 
                 batch_feats = [get_bbox_feature(embeddings, bbox) for bbox in bboxes]
                 batch_feats_hard = [get_bbox_feature(hard_embeddings, bbox) for bbox in bboxes]
+
+                if soft_masks[0].shape[0] != pred_masks[0].shape[0]:
+                    continue
             
                 
                 if len(feature_queue) == q_len:
@@ -673,7 +669,7 @@ def train_resam(cfg: Box, fabric: L.Fabric, model: Model, optimizer: _FabricOpti
                 batch_feats = []  
 
                 for i, (pred_mask, soft_mask, iou_prediction) in enumerate(
-                        zip(pred_masks, soft_masks, iou_predictions  )
+                        zip(pred_masks[0], soft_masks[0], iou_predictions[0]  )
                     ):
                         soft_mask = (soft_mask > 0.).float()
 
@@ -681,8 +677,8 @@ def train_resam(cfg: Box, fabric: L.Fabric, model: Model, optimizer: _FabricOpti
                     
                         loss_focal += focal_loss(pred_mask, soft_mask)  
                         loss_dice += dice_loss(pred_mask, soft_mask)   
-                        batch_iou = calc_iou(pred_mask, soft_mask)
-                        loss_iou += F.mse_loss(iou_prediction, batch_iou, reduction='sum') / num_masks
+                        batch_iou = calc_iou(pred_mask.unsqueeze(0), soft_mask.unsqueeze(0))
+                        loss_iou += F.mse_loss(iou_prediction.view(-1), batch_iou.view(-1), reduction='sum') 
 
                 del  pred_masks, iou_predictions 
                 del pred_stack, overlap_map, invert_overlap_map
@@ -704,10 +700,11 @@ def train_resam(cfg: Box, fabric: L.Fabric, model: Model, optimizer: _FabricOpti
                         iou_diff = iou_soft - iou_pred
                         iou_diff_list.append(iou_diff)
 
+      
                 loss_dice = loss_dice / num_masks
                 loss_focal = loss_focal / num_masks
-                loss_sim  = loss_sim
-                
+                loss_iou = loss_iou / num_masks
+     
 
                 loss_total =  (loss_focal +  loss_dice  + loss_iou + 0.1*loss_sim)   
 
