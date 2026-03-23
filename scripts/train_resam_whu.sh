@@ -2,13 +2,25 @@
 cfg_file="configs.config_whu"
 prompt="point"
 load_type="soft"
-num_points_list=(1 2 3)
-output_dirs=("work_dir/whu/resam")
+
+script_name="train_${1}.py"
+num_points=$2
+
+output_dirs=("work_dir/nwpu/${1}")
+# Check if the file actually exists before running
+if [ ! -f "$script_name" ]; then
+    echo "Error: File $script_name not found!"
+    exit 1
+fi
+
+
+if [ -z "$num_points" ]; then
+    echo "Error: Please provide the number of points. Example: bash scripts/train_resam_{dataset}.sh resam 2"
+    exit 1
+fi
 
 for output_dir in "${output_dirs[@]}"; do
-    for num_points in "${num_points_list[@]}"; do
-        
-        out_dir="${output_dir}/point_${num_points}"
-        CUDA_VISIBLE_DEVICES=0 python train_resam.py --cfg "$cfg_file" --prompt "$prompt" --num_points "$num_points" --out_dir "$out_dir"  --load_type "$load_type"
-    done
+    out_dir="${output_dir}/point_${num_points}"
+    CUDA_VISIBLE_DEVICES=0 python "$script_name" --cfg "$cfg_file" --prompt "$prompt" --num_points "$num_points" --out_dir "$out_dir"  --load_type "$load_type"
+
 done
