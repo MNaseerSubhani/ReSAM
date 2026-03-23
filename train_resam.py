@@ -573,7 +573,10 @@ def train_resam(cfg: Box, fabric: L.Fabric, model: Model, optimizer: _FabricOpti
         sim_losses = AverageMeter()
         end = time.time()
 
+
+     
         for iter, data in enumerate(train_dataloader):
+            
             data_time.update(time.time() - end)
             images_weak, images_strong, bboxes, gt_masks, img_paths= data
             del data
@@ -581,31 +584,47 @@ def train_resam(cfg: Box, fabric: L.Fabric, model: Model, optimizer: _FabricOpti
             step_size = 50
             for j in range(0, len(gt_masks[0]), step_size):
                 gt_masks_new = gt_masks[0][j:j+step_size].unsqueeze(0)
+
+    
                 prompts = get_prompts(cfg, bboxes, gt_masks_new)
+
                 batch_size = images_weak.size(0)
 
                 entropy_maps, preds = process_forward(images_weak, prompts, teacher_model)
+                
                 pred_stack = torch.stack(preds, dim=0)
                 entropy_maps = torch.stack(entropy_maps, dim=0)
+            
+                
+                
                 confidence_map = 1 - entropy_maps  # higher is more confident
                 pred_binary = ((pred_stack * confidence_map )> 0.2).float()
 
+          
                 overlap_count = pred_binary.sum(dim=0)
                 overlap_map = (overlap_count > 1).float()
                 invert_overlap_map = 1.0 - overlap_map
 
+      
+
+
                 bboxes = []
+
                 for i,  (pred, ent) in enumerate( zip(pred_binary, entropy_maps)):
+            
                     pred_w_overlap = ((pred[0]*invert_overlap_map[0]  ) )#    * ((1 - 0.1 * ent[0]))
                     ys, xs = torch.where(pred_w_overlap > 0.4)
                     if len(xs) > 0 and len(ys) > 0:
                         x_min, x_max = xs.min().item(), xs.max().item()
                         y_min, y_max = ys.min().item(), ys.max().item()
+
                         bboxes.append(torch.tensor([x_min, y_min , x_max, y_max], dtype=torch.float32))
 
+                    
                 if len(bboxes) == 0:
                     continue  # skip if no valid region
 
+         
                 bboxes = torch.stack(bboxes)
 
                 with torch.no_grad():
