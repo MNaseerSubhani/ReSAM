@@ -582,14 +582,14 @@ def train_resam(cfg: Box, fabric: L.Fabric, model: Model, optimizer: _FabricOpti
                 gt_masks_new = gt_masks[0][j:j+step_size].unsqueeze(0)
                 prompts = get_prompts(cfg, bboxes, gt_masks_new)
                 batch_size = images_weak.size(0)
-                
+
                 entropy_maps, preds = process_forward(images_weak, prompts, teacher_model)
                 
                 pred_stack = torch.stack(preds, dim=0)
                 entropy_maps = torch.stack(entropy_maps, dim=0)
             
                 
-                
+               
                 confidence_map = 1 - entropy_maps  # higher is more confident
                 pred_binary = ((pred_stack * confidence_map )> 0.2).float()
 
@@ -699,6 +699,7 @@ def train_resam(cfg: Box, fabric: L.Fabric, model: Model, optimizer: _FabricOpti
                 if watcher.is_outlier(loss_total):
                     continue
                 fabric.backward(loss_total)
+                torch.cuda.empty_cache()
 
                 if analyze:
                     if img_paths[0]  in analyze_img_paths:
