@@ -679,7 +679,7 @@ def train_resam(cfg: Box, fabric: L.Fabric, model: Model, optimizer: _FabricOpti
 
                 del  pred_masks, iou_predictions 
                 del pred_stack, overlap_map, invert_overlap_map
-                torch.cuda.empty_cache()
+                # torch.cuda.empty_cache()
 
                 if analyze:
                     gt_masks_bin = (gt_masks_new[0] > 0.5).float()
