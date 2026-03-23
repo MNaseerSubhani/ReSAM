@@ -582,6 +582,7 @@ def train_resam(cfg: Box, fabric: L.Fabric, model: Model, optimizer: _FabricOpti
             for j in range(0, len(gt_masks[0]), step_size):
                 gt_masks_new = gt_masks[0][j:j+step_size].unsqueeze(0)
                 prompts = get_prompts(cfg, bboxes, gt_masks_new)
+                batch_size = images_weak.size(0)
 
                 entropy_maps, preds = process_forward(images_weak, prompts, teacher_model)
                 pred_stack = torch.stack(preds, dim=0)
