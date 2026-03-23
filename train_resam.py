@@ -531,7 +531,9 @@ def train_resam(cfg: Box, fabric: L.Fabric, model: Model, optimizer: _FabricOpti
     match_interval = cfg.match_interval
     eval_interval = len(train_dataloader)
 
+    # embedding_queue = []
     iter_mem_usage = []
+
     os.makedirs(os.path.join(cfg.out_dir, "save"), exist_ok=True)
     csv_path = os.path.join(cfg.out_dir, "training_log.csv")
 
@@ -540,6 +542,7 @@ def train_resam(cfg: Box, fabric: L.Fabric, model: Model, optimizer: _FabricOpti
         writer.writerow(["Epoch", "Iteration", "Val_IoU", "Status"])
 
     fabric.print(f"Training enabled. Logging to: {csv_path}")
+
     eps = 1e-8
     # entropy_means = deque(maxlen=len(train_dataloader))
     step_size = 50
@@ -702,8 +705,8 @@ def train_resam(cfg: Box, fabric: L.Fabric, model: Model, optimizer: _FabricOpti
 
                 loss_total =  (loss_focal +  loss_dice  + 0.1*loss_iou + 0.1*loss_sim)   
 
-                # if watcher.is_outlier(loss_total):
-                #     continue
+                if watcher.is_outlier(loss_total):
+                    continue
                 fabric.backward(loss_total)
 
                 if analyze:
