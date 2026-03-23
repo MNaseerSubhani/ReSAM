@@ -646,8 +646,8 @@ def train_resam(cfg: Box, fabric: L.Fabric, model: Model, optimizer: _FabricOpti
                 batch_feats = [get_bbox_feature(embeddings, bbox) for bbox in bboxes]
                 batch_feats_hard = [get_bbox_feature(hard_embeddings, bbox) for bbox in bboxes]
 
-                if soft_masks[0].shape[0] != pred_masks[0].shape[0]:
-                    continue
+                # if soft_masks[0].shape[0] != pred_masks[0].shape[0]:
+                #     continue
             
                 
                 if len(feature_queue) == q_len:
