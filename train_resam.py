@@ -37,13 +37,13 @@ import torch.nn.functional as F
 from collections import deque
 import matplotlib. pyplot as plt
 
-seed = 42
-import random
+# seed = 42
+# import random
 
-torch.manual_seed(seed)
-torch.cuda.manual_seed_all(seed)
-np.random.seed(seed)
-random.seed(seed)
+# torch.manual_seed(seed)
+# torch.cuda.manual_seed_all(seed)
+# np.random.seed(seed)
+# random.seed(seed)
 
 
 def process_forward(img_tensor, prompt, model):
