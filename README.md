@@ -3,7 +3,6 @@
 # ReSAM: Refine, Requery, and Reinforce: Self-Prompting Point-Supervised Segmentation for Remote Sensing Images
 
 [![paper](https://img.shields.io/badge/arXiv-Paper-<COLOR>.svg)](https://arxiv.org/abs/2511.21606)
-
 [![Project Page](https://img.shields.io/badge/🌐-Project_Page-blue)](https://mnaseersubhani.github.io/resam_project_page/)
 [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/drive/12RtZknvF2JwVtjWMW4MfyjE7buQSO9_x?usp=drive_link)
 </div>
