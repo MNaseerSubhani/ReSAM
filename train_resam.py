@@ -68,7 +68,7 @@ def process_forward(img_tensor, prompt, model):
         
 
 # persistent feature queue
-Q_LEN=32
+Q_LEN=256
 feature_queue = deque(maxlen=Q_LEN)  
 feature_queue_hard = deque(maxlen=Q_LEN)
 
@@ -232,7 +232,7 @@ def train_resam(cfg: Box, fabric: L.Fabric, model: Model, optimizer: _FabricOpti
                 loss_focal = loss_focal / num_masks
                 loss_iou = loss_iou/num_masks
                 
-                loss_total =  ( loss_focal +  loss_dice  + 0.1*loss_iou )#+ 0.1*loss_sim)   
+                loss_total =  ( loss_focal +  loss_dice  + 0.1*loss_iou + 0.1*loss_sim)   
 
                 fabric.backward(loss_total)
 
