@@ -46,9 +46,6 @@ np.random.seed(seed)
 random.seed(seed)
 
 
-
-
-
 def process_forward(img_tensor, prompt, model):
     with torch.no_grad():
         _, masks_pred, _, _ = model(img_tensor, prompt)
@@ -235,7 +232,7 @@ def train_resam(cfg: Box, fabric: L.Fabric, model: Model, optimizer: _FabricOpti
                 loss_focal = loss_focal / num_masks
                 loss_iou = loss_iou/num_masks
                 
-                loss_total =  ( loss_focal +  loss_dice  + 0.1*loss_iou + 0.1*loss_sim)   
+                loss_total =  ( loss_focal +  loss_dice  + 0.1*loss_iou )#+ 0.1*loss_sim)   
 
                 fabric.backward(loss_total)
 
