@@ -1,11 +1,9 @@
-
 import os
-# os.environ["CUDA_VISIBLE_DEVICES"] = "1"
 import time
 import argparse
 import random
 # from abc import ABC
-
+# os.environ["CUDA_VISIBLE_DEVICES"] = "1"
 import cv2
 import numpy as np
 import torch
@@ -37,13 +35,8 @@ import torch.nn.functional as F
 from collections import deque
 import matplotlib. pyplot as plt
 
-seed = 42
-import random
 
-torch.manual_seed(seed)
-torch.cuda.manual_seed_all(seed)
-np.random.seed(seed)
-random.seed(seed)
+
 
 
 def process_forward(img_tensor, prompt, model):
@@ -68,12 +61,14 @@ def process_forward(img_tensor, prompt, model):
         
 
 # persistent feature queue
-Q_LEN=32
+Q_LEN=128
 feature_queue = deque(maxlen=Q_LEN)  
 feature_queue_hard = deque(maxlen=Q_LEN)
 
+
+
 analyze = False
-m = 0.99 
+m = 0.99
 def train_resam(cfg: Box, fabric: L.Fabric, model: Model, optimizer: _FabricOptimizer,
               scheduler: _FabricOptimizer, train_dataloader: DataLoader, val_dataloader: DataLoader):
 
@@ -86,7 +81,6 @@ def train_resam(cfg: Box, fabric: L.Fabric, model: Model, optimizer: _FabricOpti
     eval_interval = len(train_dataloader)
 
     iter_mem_usage = []
-
     os.makedirs(os.path.join(cfg.out_dir, "save"), exist_ok=True)
     csv_path = os.path.join(cfg.out_dir, "training_log.csv")
 
@@ -97,6 +91,7 @@ def train_resam(cfg: Box, fabric: L.Fabric, model: Model, optimizer: _FabricOpti
     fabric.print(f"Training enabled. Logging to: {csv_path}")
 
     eps = 1e-8
+    # entropy_means = deque(maxlen=len(train_dataloader))
     step_size = 50
     if analyze:
         iou_diff_list=[]
@@ -111,14 +106,16 @@ def train_resam(cfg: Box, fabric: L.Fabric, model: Model, optimizer: _FabricOpti
             item = dataset[idx]
             img_path = item[-1]  # last element is image path
             analyze_img_paths.append(img_path)
-
+    
     # Initialize teacher as a copy of the student
     teacher_model = copy.deepcopy(model)
     # Freeze teacher parameters
     for param in teacher_model.parameters():
         param.requires_grad = False
 
+    _, _ = validate(fabric, cfg, model, val_dataloader, cfg.name, 0)
     for epoch in range(1, cfg.num_epochs + 1):
+  
         batch_time = AverageMeter()
         data_time = AverageMeter()
         focal_losses = AverageMeter()
@@ -128,6 +125,7 @@ def train_resam(cfg: Box, fabric: L.Fabric, model: Model, optimizer: _FabricOpti
         sim_losses = AverageMeter()
         end = time.time()
 
+     
         for iter, data in enumerate(train_dataloader):
             data_time.update(time.time() - end)
             images_weak, images_strong, bboxes, gt_masks, img_paths= data
@@ -142,18 +140,18 @@ def train_resam(cfg: Box, fabric: L.Fabric, model: Model, optimizer: _FabricOpti
                 entropy_maps, preds = process_forward(images_weak, prompts, teacher_model)
                 pred_stack = torch.stack(preds, dim=0)
                 entropy_maps = torch.stack(entropy_maps, dim=0)
-               
+            
                 confidence_map = 1 - entropy_maps  # higher is more confident
-                pred_binary = ((pred_stack * confidence_map )> 0.2).float()
+                pred_binary = ((pred_stack * confidence_map )> 0.3).float()
+
                 overlap_count = pred_binary.sum(dim=0)
                 overlap_map = (overlap_count > 1).float()
                 invert_overlap_map = 1.0 - overlap_map
 
                 bboxes = []
                 for i,  (pred, ent) in enumerate( zip(pred_binary, entropy_maps)):
-            
                     pred_w_overlap = ((pred[0]*invert_overlap_map[0]))
-                    ys, xs = torch.where(pred_w_overlap > 0.4)
+                    ys, xs = torch.where(pred_w_overlap > 0.)
                     if len(xs) > 0 and len(ys) > 0:
                         x_min, x_max = xs.min().item(), xs.max().item()
                         y_min, y_max = ys.min().item(), ys.max().item()
@@ -168,7 +166,6 @@ def train_resam(cfg: Box, fabric: L.Fabric, model: Model, optimizer: _FabricOpti
                 with torch.no_grad():
                     embeddings, soft_masks, _, _ = teacher_model(images_weak, bboxes.unsqueeze(0))
 
-
                 hard_embeddings, pred_masks, iou_predictions, _= model(images_strong, prompts)
                 del _
 
@@ -180,7 +177,6 @@ def train_resam(cfg: Box, fabric: L.Fabric, model: Model, optimizer: _FabricOpti
 
                 batch_feats = [get_bbox_feature(embeddings, bbox) for bbox in bboxes]
                 batch_feats_hard = [get_bbox_feature(hard_embeddings, bbox) for bbox in bboxes]
-
                 if len(feature_queue) == Q_LEN:
                     batch_feats = F.normalize(torch.stack(batch_feats, dim=0), dim=1)
                     batch_feats_hard = F.normalize(torch.stack(batch_feats_hard, dim=0), dim=1)
@@ -193,25 +189,24 @@ def train_resam(cfg: Box, fabric: L.Fabric, model: Model, optimizer: _FabricOpti
                     batch_feats_hard = F.normalize(torch.stack(batch_feats_hard, dim=0), dim=1)
                     feature_queue.extend([f.detach() for f in batch_feats])
                     feature_queue_hard.extend([f.detach() for f in batch_feats_hard])
-                    
                     loss_sim = torch.tensor(0., device=fabric.device)
 
 
                 batch_feats = []  
-                for i, (pred_mask, soft_mask, iou_prediction) in enumerate(
-                        zip(pred_masks[0], soft_masks[0], iou_predictions[0]  )
+                for i, (pred_mask, soft_mask, iou_prediction, bbox) in enumerate(
+                        zip(pred_masks[0], soft_masks[0], iou_predictions[0], bboxes  )
                     ):
                         soft_mask = (soft_mask > 0.).float()
                         pred_mask = F.sigmoid(pred_mask)
-                    
                         loss_focal += focal_loss(pred_mask, soft_mask)  
                         loss_dice += dice_loss(pred_mask, soft_mask)   
                         batch_iou = calc_iou(pred_mask.unsqueeze(0), soft_mask.unsqueeze(0))
-                        loss_iou += F.mse_loss(iou_prediction.view(-1), batch_iou.view(-1), reduction='sum') 
+                        loss_iou += F.mse_loss(iou_prediction.view(-1), batch_iou.view(-1), reduction='sum')
 
                 del  pred_masks, iou_predictions 
                 del pred_stack, overlap_map, invert_overlap_map
-            
+                torch.cuda.empty_cache()
+
                 if analyze:
                     gt_masks_bin = (gt_masks_new[0] > 0.5).float()
                     soft_masks_sig = torch.sigmoid(soft_masks[0])
@@ -230,12 +225,11 @@ def train_resam(cfg: Box, fabric: L.Fabric, model: Model, optimizer: _FabricOpti
 
                 loss_dice = loss_dice / num_masks
                 loss_focal = loss_focal / num_masks
-                loss_iou = loss_iou/num_masks
-                
-                loss_total =  ( loss_focal +  loss_dice  + 0.1*loss_iou )#+ 0.1*loss_sim)   
+                loss_iou  = loss_iou/ num_masks
+        
+                loss_total =  (loss_focal +  loss_dice  + loss_iou+ 0.1*loss_sim)   
 
                 fabric.backward(loss_total)
-
                 if analyze:
                     if img_paths[0]  in analyze_img_paths:
                         save_analyze_images(
@@ -249,6 +243,7 @@ def train_resam(cfg: Box, fabric: L.Fabric, model: Model, optimizer: _FabricOpti
 
                 optimizer.step()
                 scheduler.step()
+                
                 with torch.no_grad(): 
                     for param_q, param_k in zip(model.parameters(), teacher_model.parameters()):
                         param_k.data.mul_(m).add_((1 - m) * param_q.detach().data)
@@ -356,11 +351,11 @@ def main(cfg: Box) -> int:
     model, optimizer = fabric.setup(model, optimizer)
 
 
-    print('-'*100)
-    print('\033[92mDirect test on the original SAM.\033[0m') 
-    init_iou, _, = validate(fabric, cfg, model, val_data, name=cfg.name, epoch=0)
-    print('-'*100)
-    del _     
+    # print('-'*100)
+    # print('\033[92mDirect test on the original SAM.\033[0m') 
+    # init_iou, _, = validate(fabric, cfg, model, val_data, name=cfg.name, epoch=0)
+    # print('-'*100)
+    # del _     
 
     
     train_resam(cfg, fabric, model, optimizer, scheduler, train_data, val_data)
@@ -396,8 +391,3 @@ if __name__ == "__main__":
         main(cfg)
 
     torch.cuda.empty_cache()
-
-
-
-
-
