@@ -532,6 +532,7 @@ def train_resam(cfg: Box, fabric: L.Fabric, model: Model, optimizer: _FabricOpti
     for param in teacher_model.parameters():
         param.requires_grad = False
 
+    _, _ = validate(fabric, cfg, teacher_model, val_dataloader, cfg.name, 0)
     for epoch in range(1, cfg.num_epochs + 1):
   
         batch_time = AverageMeter()
