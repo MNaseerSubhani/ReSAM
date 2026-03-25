@@ -115,7 +115,7 @@ def train_resam(cfg: Box, fabric: L.Fabric, model: Model, optimizer: _FabricOpti
 
     # _, _ = validate(fabric, cfg, model, val_dataloader, cfg.name, 0)
     for epoch in range(1, cfg.num_epochs + 1):
-  
+        model.train()
         batch_time = AverageMeter()
         data_time = AverageMeter()
         focal_losses = AverageMeter()
