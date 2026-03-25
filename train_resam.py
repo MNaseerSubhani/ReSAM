@@ -394,3 +394,445 @@ if __name__ == "__main__":
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+# import os
+# import time
+# import argparse
+# import random
+# # from abc import ABC
+
+# import cv2
+# import numpy as np
+# import torch
+# # import torch.nn.functional as F
+# from torch.utils.data import DataLoader
+# from tqdm import tqdm
+# from PIL import Image
+# from matplotlib import cm
+
+# from scipy.ndimage import label
+# import numpy as np
+
+# import lightning as L
+# from lightning.fabric.loggers import TensorBoardLogger
+# from lightning.fabric.fabric import _FabricOptimizer
+
+# from box import Box
+# from datasets import call_load_dataset
+# from utils.model import Model
+# from utils.losses import DiceLoss, FocalLoss, cosine_similarity
+# from utils.eval_utils import AverageMeter, validate, get_prompts, calc_iou
+# from utils.tools import copy_model, create_csv, reduce_instances
+# from utils.utils import *
+# import math
+
+# import  csv, copy
+# import torch
+# import torch.nn.functional as F
+# from collections import deque
+# import matplotlib. pyplot as plt
+
+
+
+
+
+# def process_forward(img_tensor, prompt, model):
+#     with torch.no_grad():
+#         _, masks_pred, _, _ = model(img_tensor, prompt)
+#     entropy_maps = []
+#     pred_ins = []
+#     eps=1e-8
+#     for i, mask_p in enumerate( masks_pred[0]):
+#         mask_p = torch.sigmoid(mask_p)
+#         p = mask_p.clamp(1e-6, 1 - 1e-6)
+#         if p.ndim == 2:
+#             p = p.unsqueeze(0)
+
+#         entropy = - (p * torch.log(p + eps) + (1 - p) * torch.log(1 - p + eps))
+#         max_ent = torch.log(torch.tensor(2.0, device=mask_p.device))
+#         entropy_norm = entropy / (max_ent + 1e-8)   # [0, 1]
+#         entropy_maps.append(entropy_norm)
+#         pred_ins.append(p)
+
+#     return entropy_maps, pred_ins
+        
+
+# # persistent feature queue
+# Q_LEN=32
+# feature_queue = deque(maxlen=Q_LEN)  
+# feature_queue_hard = deque(maxlen=Q_LEN)
+
+
+
+# analyze = False
+# m = 0.99
+# def train_resam(cfg: Box, fabric: L.Fabric, model: Model, optimizer: _FabricOptimizer,
+#               scheduler: _FabricOptimizer, train_dataloader: DataLoader, val_dataloader: DataLoader):
+
+
+#     focal_loss = FocalLoss()
+#     dice_loss = DiceLoss()
+#     best_state = copy.deepcopy(model.state_dict())
+#     no_improve_count = 0
+#     max_patience = cfg.get("patience", 3)
+#     match_interval = cfg.match_interval
+#     eval_interval = len(train_dataloader)
+
+#     # embedding_queue = []
+#     iter_mem_usage = []
+
+#     os.makedirs(os.path.join(cfg.out_dir, "save"), exist_ok=True)
+#     csv_path = os.path.join(cfg.out_dir, "training_log.csv")
+
+#     with open(csv_path, "w", newline="") as f:
+#         writer = csv.writer(f)
+#         writer.writerow(["Epoch", "Iteration", "Val_IoU", "Status"])
+
+#     fabric.print(f"Training enabled. Logging to: {csv_path}")
+
+#     eps = 1e-8
+#     # entropy_means = deque(maxlen=len(train_dataloader))
+#     step_size = 50
+#     if analyze:
+#         iou_diff_list=[]
+#         # Select N random samples from the dataset
+#         N = 50   # number you want
+#         dataset = train_dataloader.dataset
+
+#         random_indices = random.sample(range(len(dataset)), N)
+#         analyze_img_paths = []
+
+#         for idx in random_indices:
+#             item = dataset[idx]
+#             img_path = item[-1]  # last element is image path
+#             analyze_img_paths.append(img_path)
+    
+#     # Initialize teacher as a copy of the student
+#     teacher_model = copy.deepcopy(model)
+#     # Freeze teacher parameters
+#     for param in teacher_model.parameters():
+#         param.requires_grad = False
+
+
+#     for epoch in range(1, cfg.num_epochs + 1):
+#         batch_time = AverageMeter()
+#         data_time = AverageMeter()
+#         focal_losses = AverageMeter()
+#         dice_losses = AverageMeter()
+#         iou_losses = AverageMeter()
+#         total_losses = AverageMeter()
+#         sim_losses = AverageMeter()
+#         end = time.time()
+
+     
+#         for iter, data in enumerate(train_dataloader):
+            
+#             data_time.update(time.time() - end)
+#             images_weak, images_strong, bboxes, gt_masks, img_paths= data
+#             del data
+
+#             step_size = 50
+#             for j in range(0, len(gt_masks[0]), step_size):
+#                 gt_masks_new = gt_masks[0][j:j+step_size].unsqueeze(0)
+
+    
+#                 prompts = get_prompts(cfg, bboxes, gt_masks_new)
+
+#                 batch_size = images_weak.size(0)
+
+#                 entropy_maps, preds = process_forward(images_weak, prompts, teacher_model)
+                
+#                 pred_stack = torch.stack(preds, dim=0)
+#                 entropy_maps = torch.stack(entropy_maps, dim=0)
+            
+                
+                
+#                 confidence_map = 1 - entropy_maps  # higher is more confident
+#                 pred_binary = ((pred_stack * confidence_map )> 0.2).float()
+
+          
+#                 overlap_count = pred_binary.sum(dim=0)
+#                 overlap_map = (overlap_count > 1).float()
+#                 invert_overlap_map = 1.0 - overlap_map
+
+      
+
+
+#                 bboxes = []
+
+#                 for i,  (pred, ent) in enumerate( zip(pred_binary, entropy_maps)):
+            
+#                     pred_w_overlap = ((pred[0]*invert_overlap_map[0]  ) )#    * ((1 - 0.1 * ent[0]))
+#                     ys, xs = torch.where(pred_w_overlap > 0.4)
+#                     if len(xs) > 0 and len(ys) > 0:
+#                         x_min, x_max = xs.min().item(), xs.max().item()
+#                         y_min, y_max = ys.min().item(), ys.max().item()
+
+#                         bboxes.append(torch.tensor([x_min, y_min , x_max, y_max], dtype=torch.float32))
+
+                    
+#                 if len(bboxes) == 0:
+#                     continue  # skip if no valid region
+
+         
+#                 bboxes = torch.stack(bboxes)
+
+#                 with torch.no_grad():
+#                     embeddings, soft_masks, _, _ = teacher_model(images_weak, bboxes.unsqueeze(0))
+
+
+#                 hard_embeddings, pred_masks, iou_predictions, _= model(images_strong, prompts)
+#                 del _
+
+#                 num_masks = sum(len(pred_mask) for pred_mask in pred_masks)
+#                 loss_focal = torch.tensor(0., device=fabric.device)
+#                 loss_dice = torch.tensor(0., device=fabric.device)
+#                 loss_iou = torch.tensor(0., device=fabric.device)
+#                 loss_sim = torch.tensor(0., device=fabric.device)
+
+#                 batch_feats = [get_bbox_feature(embeddings, bbox) for bbox in bboxes]
+#                 batch_feats_hard = [get_bbox_feature(hard_embeddings, bbox) for bbox in bboxes]
+            
+                
+#                 if len(feature_queue) == Q_LEN:
+#                     batch_feats = F.normalize(torch.stack(batch_feats, dim=0), dim=1)
+#                     batch_feats_hard = F.normalize(torch.stack(batch_feats_hard, dim=0), dim=1)
+#                     loss_sim = similarity_loss(feature_queue_hard,feature_queue)
+#                     loss_sim = torch.tensor(0., device=batch_feats.device) if loss_sim == -1 else loss_sim
+#                     feature_queue.extend([f.detach() for f in batch_feats])
+#                     feature_queue_hard.extend([f.detach() for f in batch_feats_hard])
+#                 else:
+#                     batch_feats = F.normalize(torch.stack(batch_feats, dim=0), dim=1)
+#                     batch_feats_hard = F.normalize(torch.stack(batch_feats_hard, dim=0), dim=1)
+#                     feature_queue.extend([f.detach() for f in batch_feats])
+#                     feature_queue_hard.extend([f.detach() for f in batch_feats_hard])
+                    
+#                     loss_sim = torch.tensor(0., device=fabric.device)
+
+
+#                 batch_feats = []  
+
+#                 for i, (pred_mask, soft_mask, iou_prediction, bbox) in enumerate(
+#                         zip(pred_masks[0], soft_masks[0], iou_predictions[0], bboxes  )
+#                     ):
+#                         soft_mask = (soft_mask > 0.).float()
+                    
+#                         loss_focal += focal_loss(pred_mask, soft_mask)  
+#                         loss_dice += dice_loss(pred_mask, soft_mask)   
+#                         batch_iou = calc_iou(pred_mask.unsqueeze(0), soft_mask.unsqueeze(0))
+#                         loss_iou += F.mse_loss(iou_prediction.view(-1), batch_iou.view(-1), reduction='sum') / num_masks
+
+#                 del  pred_masks, iou_predictions 
+#                 del pred_stack, overlap_map, invert_overlap_map
+#                 torch.cuda.empty_cache()
+
+#                 if analyze:
+#                     gt_masks_bin = (gt_masks_new[0] > 0.5).float()
+#                     soft_masks_sig = torch.sigmoid(soft_masks[0])
+#                     soft_masks_sig = (soft_masks_sig > 0.5).float()
+
+#                     pred_stack_s  = pred_stack.squeeze(1)
+#                     pred_masks_sig = (pred_stack_s > 0.5).float()
+
+#                     if pred_masks_sig.shape[0] ==soft_masks_sig.shape[0]:
+#                         iou_pred = calculate_iou(gt_masks_bin, pred_masks_sig).item()
+#                         iou_soft = calculate_iou(gt_masks_bin, soft_masks_sig).item()
+
+#                         # Difference: positive if pred_stack improves over soft_mask
+#                         iou_diff = iou_soft - iou_pred
+#                         iou_diff_list.append(iou_diff)
+
+#                 # loss_dist = loss_dist / num_masks
+#                 loss_dice = loss_dice / num_masks
+#                 loss_focal = loss_focal / num_masks
+#                 loss_sim  = loss_sim
+                
+       
+#                 loss_total =  (loss_focal +  loss_dice  + loss_iou+ 0.1*loss_sim)   
+
+#                 fabric.backward(loss_total)
+
+#                 if analyze:
+#                     if img_paths[0]  in analyze_img_paths:
+#                         save_analyze_images(
+#                             img_paths,                    
+#                             gt_masks_new,  
+#                             pred_stack, 
+#                             soft_masks,                     
+#                             bboxes,                     
+#                             os.path.join(cfg.out_dir, "analyze")
+#                         )
+
+#                 optimizer.step()
+#                 scheduler.step()
+                
+
+#                 with torch.no_grad(): 
+#                     for param_q, param_k in zip(model.parameters(), teacher_model.parameters()):
+#                         param_k.data.mul_(m).add_((1 - m) * param_q.detach().data)
+#                 optimizer.zero_grad()
+#                 torch.cuda.empty_cache()
+#                 del  prompts, soft_masks
+
+#                 curr_mem = torch.cuda.memory_allocated() / 1024**3
+#                 iter_mem_usage.append(curr_mem)
+
+#                 batch_time.update(time.time() - end)
+#                 end = time.time()
+
+#                 focal_losses.update(loss_focal.item(), batch_size)
+#                 dice_losses.update(loss_dice.item(), batch_size)
+#                 iou_losses.update(loss_iou.item(), batch_size)
+#                 total_losses.update(loss_total.item(), batch_size)
+#                 sim_losses.update(loss_sim.item(), batch_size)
+            
+
+#             if (iter + 1) % match_interval == 0:
+#                 fabric.print(
+#                     f"Epoch [{epoch}] Iter [{iter + 1}/{len(train_dataloader)}] "
+#                     f"| Time {batch_time.avg:.2f}s | Focal {focal_losses.avg:.4f} | Dice {dice_losses.avg:.4f} | "
+#                     f"IoU {iou_losses.avg:.4f} | SSA_loss {sim_losses.avg:.4f} | Total {total_losses.avg:.4f}"
+#                 )
+
+#             if (iter + 1) % eval_interval == 0:
+                
+#                 avg_means, _ = validate(fabric, cfg, model, val_dataloader, cfg.name, epoch)
+#                 best_state = copy.deepcopy(model.state_dict())
+#                 torch.save(best_state, os.path.join(cfg.out_dir, "save", "best_model.pth"))
+#                 status = "Model Saved"
+#                 with open(csv_path, "a", newline="") as f:
+#                     writer = csv.writer(f)
+#                     writer.writerow([epoch, iter + 1, avg_means, status])
+#                 avg_mem = sum(iter_mem_usage) / len(iter_mem_usage)
+#                 print(f"Average Memory {avg_mem:.2f} GB")
+#                 fabric.print(f"Validation IoU={avg_means:.4f}  | {status}")
+
+#                 if analyze:
+#                     iou_diff_tensor = torch.tensor(iou_diff_list)
+#                     num_positive = (iou_diff_tensor > 0).sum().item()
+#                     num_negative = (iou_diff_tensor < 0).sum().item()
+#                     percent_improved = 100 * num_positive / (num_positive + num_negative + 1e-8)
+#                     print(f"Percentage of mask improved (pred_stack vs soft_mask): {percent_improved:.2f}%")
+
+
+
+
+            
+# def configure_opt(cfg: Box, model: Model):
+
+#     def lr_lambda(step):
+#         if step < cfg.opt.warmup_steps:
+#             return step / cfg.opt.warmup_steps
+#         elif step < cfg.opt.steps[0]:
+#             return 1.0
+#         elif step < cfg.opt.steps[1]:
+#             return 1 / cfg.opt.decay_factor
+#         else:
+#             return 1 / (cfg.opt.decay_factor**2)
+
+#     optimizer = torch.optim.Adam(model.model.parameters(), lr=cfg.opt.learning_rate, weight_decay=cfg.opt.weight_decay)
+#     scheduler = torch.optim.lr_scheduler.LambdaLR(optimizer, lr_lambda)
+
+#     return optimizer, scheduler
+
+
+
+# def corrupt_main(cfg):
+#     for corrupt in cfg.corruptions:
+#         cfg.corrupt = corrupt
+#         cfg.out_name = corrupt
+#         torch.cuda.empty_cache()
+#         main(cfg)
+
+
+
+# def main(cfg: Box) -> int:
+
+#     gpu_ids = [str(i) for i in range(torch.cuda.device_count())]
+#     num_devices = len(gpu_ids)
+#     fabric = L.Fabric(accelerator="auto",
+#                       devices=num_devices,
+#                       strategy="auto",
+#                       loggers=[TensorBoardLogger(cfg.out_dir)])
+#     fabric.launch()
+#     fabric.seed_everything(1337 + fabric.global_rank)
+
+#     if fabric.global_rank == 0:
+#         os.makedirs(os.path.join(cfg.out_dir, "save"), exist_ok=True)
+#         create_csv(os.path.join(cfg.out_dir, "metrics.csv"), csv_head=cfg.csv_keys)
+
+#     with fabric.device:
+#         model = Model(cfg)
+#         model.setup()
+
+#     load_datasets = call_load_dataset(cfg)
+#     train_data, val_data, pt_data = load_datasets(cfg, img_size=1024, return_pt = True)
+#     train_data = fabric._setup_dataloader(train_data)
+#     val_data = fabric._setup_dataloader(val_data)
+#     pt_data = fabric._setup_dataloader(pt_data)
+#     optimizer, scheduler = configure_opt(cfg, model)
+#     model, optimizer = fabric.setup(model, optimizer)
+
+
+#     # print('-'*100)
+#     # print('\033[92mDirect test on the original SAM.\033[0m') 
+#     # init_iou, _, = validate(fabric, cfg, model, val_data, name=cfg.name, epoch=0)
+#     # print('-'*100)
+#     # del _     
+
+    
+#     train_resam(cfg, fabric, model, optimizer, scheduler, train_data, val_data)
+
+#     del model, train_data, val_data
+
+
+# def parse_args():
+#     parser = argparse.ArgumentParser(description='Train a detector')
+#     parser.add_argument('--cfg', help='train config file path')
+#     parser.add_argument('--prompt', help='the type of prompt')
+#     parser.add_argument('--num_points',type=int, help='the number of points')
+#     parser.add_argument('--out_dir', help='the dir to save logs and models')
+#     parser.add_argument('--load_type', help='the dir to save logs and models')      
+#     args = parser.parse_args()
+#     return args
+
+
+# if __name__ == "__main__":
+#     print(torch.cuda.current_device())
+#     torch.cuda.empty_cache()
+#     torch.set_float32_matmul_precision('high')
+#     args = parse_args()
+
+#     exec(f'from {args.cfg} import cfg')
+
+#     # transfer the args to a dict
+#     args_dict = vars(args)
+#     cfg.merge_update(args_dict)
+#     print(cfg.model.backend)
+
+#     if cfg.model.backend == 'sam':
+#         main(cfg)
+
+#     torch.cuda.empty_cache()
