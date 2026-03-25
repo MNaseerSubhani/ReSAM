@@ -169,6 +169,9 @@ def train_resam(cfg: Box, fabric: L.Fabric, model: Model, optimizer: _FabricOpti
                 hard_embeddings, pred_masks, iou_predictions, _= model(images_strong, prompts)
                 del _
 
+                if soft_masks[0].shape[0] != pred_masks[0].shape[0]:
+                    continue
+
                 num_masks = sum(len(pred_mask) for pred_mask in pred_masks)
                 loss_focal = torch.tensor(0., device=fabric.device)
                 loss_dice = torch.tensor(0., device=fabric.device)
@@ -193,8 +196,8 @@ def train_resam(cfg: Box, fabric: L.Fabric, model: Model, optimizer: _FabricOpti
 
 
                 batch_feats = []  
-                for i, (pred_mask, soft_mask, iou_prediction, bbox) in enumerate(
-                        zip(pred_masks[0], soft_masks[0], iou_predictions[0], bboxes  )
+                for i, (pred_mask, soft_mask, iou_prediction) in enumerate(
+                        zip(pred_masks, soft_masks, iou_predictions  )
                     ):
                         soft_mask = (soft_mask > 0.).float()
                         pred_mask = F.sigmoid(pred_mask)
