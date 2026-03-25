@@ -527,14 +527,13 @@ def train_resam(cfg: Box, fabric: L.Fabric, model: Model, optimizer: _FabricOpti
             analyze_img_paths.append(img_path)
     
     # Initialize teacher as a copy of the student
-    model.train()
     teacher_model = copy.deepcopy(model)
     # Freeze teacher parameters
     for param in teacher_model.parameters():
         param.requires_grad = False
 
     for epoch in range(1, cfg.num_epochs + 1):
-        model.train()
+  
         batch_time = AverageMeter()
         data_time = AverageMeter()
         focal_losses = AverageMeter()
@@ -770,11 +769,11 @@ def main(cfg: Box) -> int:
     model, optimizer = fabric.setup(model, optimizer)
 
 
-    print('-'*100)
-    print('\033[92mDirect test on the original SAM.\033[0m') 
-    init_iou, _, = validate(fabric, cfg, model, val_data, name=cfg.name, epoch=0)
-    print('-'*100)
-    del _     
+    # print('-'*100)
+    # print('\033[92mDirect test on the original SAM.\033[0m') 
+    # init_iou, _, = validate(fabric, cfg, model, val_data, name=cfg.name, epoch=0)
+    # print('-'*100)
+    # del _     
 
     
     train_resam(cfg, fabric, model, optimizer, scheduler, train_data, val_data)
