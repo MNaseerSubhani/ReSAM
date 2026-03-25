@@ -527,6 +527,7 @@ def train_resam(cfg: Box, fabric: L.Fabric, model: Model, optimizer: _FabricOpti
             analyze_img_paths.append(img_path)
     
     # Initialize teacher as a copy of the student
+    model.train()
     teacher_model = copy.deepcopy(model)
     # Freeze teacher parameters
     for param in teacher_model.parameters():
