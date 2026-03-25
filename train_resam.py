@@ -113,7 +113,7 @@ def train_resam(cfg: Box, fabric: L.Fabric, model: Model, optimizer: _FabricOpti
     for param in teacher_model.parameters():
         param.requires_grad = False
 
-    _, _ = validate(fabric, cfg, model, val_dataloader, cfg.name, 0)
+    # _, _ = validate(fabric, cfg, model, val_dataloader, cfg.name, 0)
     for epoch in range(1, cfg.num_epochs + 1):
   
         batch_time = AverageMeter()
@@ -229,7 +229,7 @@ def train_resam(cfg: Box, fabric: L.Fabric, model: Model, optimizer: _FabricOpti
                 loss_focal = loss_focal / num_masks
                 loss_iou  = loss_iou/ num_masks
         
-                loss_total =  (loss_focal +  loss_dice  + loss_iou)#+ 0.1*loss_sim)   
+                loss_total =  (loss_focal +  loss_dice  + loss_iou+ 0.1*loss_sim)   
 
                 fabric.backward(loss_total)
                 if analyze:
