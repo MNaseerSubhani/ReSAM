@@ -350,13 +350,6 @@ def main(cfg: Box) -> int:
     optimizer, scheduler = configure_opt(cfg, model)
     model, optimizer = fabric.setup(model, optimizer)
 
-
-    # print('-'*100)
-    # print('\033[92mDirect test on the original SAM.\033[0m') 
-    # init_iou, _, = validate(fabric, cfg, model, val_data, name=cfg.name, epoch=0)
-    # print('-'*100)
-    # del _     
-
     
     train_resam(cfg, fabric, model, optimizer, scheduler, train_data, val_data)
 
