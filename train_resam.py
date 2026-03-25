@@ -422,7 +422,7 @@ import time
 import argparse
 import random
 # from abc import ABC
-
+os.environ["CUDA_VISIBLE_DEVICES"] = "1"
 import cv2
 import numpy as np
 import torch
