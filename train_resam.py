@@ -559,7 +559,7 @@ def train_resam(cfg: Box, fabric: L.Fabric, model: Model, optimizer: _FabricOpti
                 entropy_maps = torch.stack(entropy_maps, dim=0)
             
                 confidence_map = 1 - entropy_maps  # higher is more confident
-                pred_binary = ((pred_stack * confidence_map )> 0.2).float()
+                pred_binary = ((pred_stack * confidence_map )> 0.3).float()
 
                 overlap_count = pred_binary.sum(dim=0)
                 overlap_map = (overlap_count > 1).float()
@@ -768,11 +768,11 @@ def main(cfg: Box) -> int:
     model, optimizer = fabric.setup(model, optimizer)
 
 
-    # print('-'*100)
-    # print('\033[92mDirect test on the original SAM.\033[0m') 
-    # init_iou, _, = validate(fabric, cfg, model, val_data, name=cfg.name, epoch=0)
-    # print('-'*100)
-    # del _     
+    print('-'*100)
+    print('\033[92mDirect test on the original SAM.\033[0m') 
+    init_iou, _, = validate(fabric, cfg, model, val_data, name=cfg.name, epoch=0)
+    print('-'*100)
+    del _     
 
     
     train_resam(cfg, fabric, model, optimizer, scheduler, train_data, val_data)
