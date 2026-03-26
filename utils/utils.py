@@ -307,3 +307,25 @@ def save_analyze_images(
 
     
     save_incremental_by_image_name(out_dir, img_path, "pseudo_mask", merged_masks)
+
+
+
+def get_free_gpu():
+    if not torch.cuda.is_available():
+        raise RuntimeError("No CUDA available")
+
+    free_mem = []
+    for i in range(torch.cuda.device_count()):
+        try:
+            torch.cuda.set_device(i)
+            free, total = torch.cuda.mem_get_info()
+            free_mem.append((i, free))
+        except:
+            continue
+
+    if not free_mem:
+        raise RuntimeError("No usable GPU found")
+
+    # pick GPU with max free memory
+    best_gpu = max(free_mem, key=lambda x: x[1])[0]
+    return best_gpu

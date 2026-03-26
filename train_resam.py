@@ -2,8 +2,6 @@ import os
 import time
 import argparse
 import random
-# from abc import ABC
-os.environ["CUDA_VISIBLE_DEVICES"] = "1"
 import cv2
 import numpy as np
 import torch
@@ -35,6 +33,10 @@ import torch.nn.functional as F
 from collections import deque
 import matplotlib. pyplot as plt
 
+
+
+gpu_id = get_free_gpu()
+os.environ["CUDA_VISIBLE_DEVICES"] = str(gpu_id)
 
 
 
