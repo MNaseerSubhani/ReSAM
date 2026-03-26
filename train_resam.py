@@ -2,8 +2,6 @@ import os
 import time
 import argparse
 import random
-# from abc import ABC
-# os.environ["CUDA_VISIBLE_DEVICES"] = "1"
 import cv2
 import numpy as np
 import torch
@@ -35,6 +33,10 @@ import torch.nn.functional as F
 from collections import deque
 import matplotlib. pyplot as plt
 
+
+
+gpu_id = get_free_gpu()
+os.environ["CUDA_VISIBLE_DEVICES"] = str(gpu_id)
 
 
 
@@ -113,9 +115,9 @@ def train_resam(cfg: Box, fabric: L.Fabric, model: Model, optimizer: _FabricOpti
     for param in teacher_model.parameters():
         param.requires_grad = False
 
-    _, _ = validate(fabric, cfg, model, val_dataloader, cfg.name, 0)
+    # _, _ = validate(fabric, cfg, model, val_dataloader, cfg.name, 0)
     for epoch in range(1, cfg.num_epochs + 1):
-  
+        model.train()
         batch_time = AverageMeter()
         data_time = AverageMeter()
         focal_losses = AverageMeter()
@@ -142,7 +144,7 @@ def train_resam(cfg: Box, fabric: L.Fabric, model: Model, optimizer: _FabricOpti
                 entropy_maps = torch.stack(entropy_maps, dim=0)
             
                 confidence_map = 1 - entropy_maps  # higher is more confident
-                pred_binary = ((pred_stack * confidence_map )> 0.3).float()
+                pred_binary = ((pred_stack * confidence_map )> 0.2).float()
 
                 overlap_count = pred_binary.sum(dim=0)
                 overlap_map = (overlap_count > 1).float()
@@ -169,6 +171,7 @@ def train_resam(cfg: Box, fabric: L.Fabric, model: Model, optimizer: _FabricOpti
                 hard_embeddings, pred_masks, iou_predictions, _= model(images_strong, prompts)
                 del _
 
+                
                 num_masks = sum(len(pred_mask) for pred_mask in pred_masks)
                 loss_focal = torch.tensor(0., device=fabric.device)
                 loss_dice = torch.tensor(0., device=fabric.device)
@@ -177,6 +180,7 @@ def train_resam(cfg: Box, fabric: L.Fabric, model: Model, optimizer: _FabricOpti
 
                 batch_feats = [get_bbox_feature(embeddings, bbox) for bbox in bboxes]
                 batch_feats_hard = [get_bbox_feature(hard_embeddings, bbox) for bbox in bboxes]
+
                 if len(feature_queue) == Q_LEN:
                     batch_feats = F.normalize(torch.stack(batch_feats, dim=0), dim=1)
                     batch_feats_hard = F.normalize(torch.stack(batch_feats_hard, dim=0), dim=1)
@@ -193,8 +197,8 @@ def train_resam(cfg: Box, fabric: L.Fabric, model: Model, optimizer: _FabricOpti
 
 
                 batch_feats = []  
-                for i, (pred_mask, soft_mask, iou_prediction, bbox) in enumerate(
-                        zip(pred_masks[0], soft_masks[0], iou_predictions[0], bboxes  )
+                for i, (pred_mask, soft_mask, iou_prediction) in enumerate(
+                        zip(pred_masks[0], soft_masks[0], iou_predictions[0]  )
                     ):
                         soft_mask = (soft_mask > 0.).float()
                         pred_mask = F.sigmoid(pred_mask)
@@ -227,7 +231,7 @@ def train_resam(cfg: Box, fabric: L.Fabric, model: Model, optimizer: _FabricOpti
                 loss_focal = loss_focal / num_masks
                 loss_iou  = loss_iou/ num_masks
         
-                loss_total =  (loss_focal +  loss_dice  + loss_iou+ 0.1*loss_sim)   
+                loss_total =  (loss_focal +  loss_dice  + loss_iou + 0.1*loss_sim)   
 
                 fabric.backward(loss_total)
                 if analyze:
@@ -350,12 +354,6 @@ def main(cfg: Box) -> int:
     optimizer, scheduler = configure_opt(cfg, model)
     model, optimizer = fabric.setup(model, optimizer)
 
-
-    # print('-'*100)
-    # print('\033[92mDirect test on the original SAM.\033[0m') 
-    # init_iou, _, = validate(fabric, cfg, model, val_data, name=cfg.name, epoch=0)
-    # print('-'*100)
-    # del _     
 
     
     train_resam(cfg, fabric, model, optimizer, scheduler, train_data, val_data)
