@@ -333,6 +333,9 @@ len_q = 256
 # persistent feature queue
 feature_queue = deque(maxlen=len_q)  # keep up to 512 previous object embeddings
 feature_queue_hard = deque(maxlen=len_q)
+#
+# EMA momentum for the teacher model (matches train_resam.py behavior).
+m = 0.99
 
 def train_resam(cfg: Box, fabric: L.Fabric, model: Model, optimizer: _FabricOptimizer,
               scheduler: _FabricOptimizer, train_dataloader: DataLoader, val_dataloader: DataLoader):
@@ -361,9 +364,16 @@ def train_resam(cfg: Box, fabric: L.Fabric, model: Model, optimizer: _FabricOpti
     # entropy_means = deque(maxlen=len(train_dataloader))
     step_size = 50
 
-    
+    # Teacher model for generating soft targets/pseudo-labels.
+    # Keep it frozen and update it with EMA after each optimizer step.
+    teacher_model = copy.deepcopy(model)
+    for param in teacher_model.parameters():
+        param.requires_grad = False
+    teacher_model.eval()
+    predictor = SAM2ImagePredictor(teacher_model)
 
     for epoch in range(1, cfg.num_epochs + 1):
+        model.train()
         batch_time = AverageMeter()
         data_time = AverageMeter()
         focal_losses = AverageMeter()
@@ -372,8 +382,6 @@ def train_resam(cfg: Box, fabric: L.Fabric, model: Model, optimizer: _FabricOpti
         total_losses = AverageMeter()
         sim_losses = AverageMeter()
         end = time.time()
-        teacher_model = copy.deepcopy(model)
-        predictor = SAM2ImagePredictor(teacher_model)
         for iter, data in enumerate(train_dataloader):
             
             data_time.update(time.time() - end)
@@ -451,8 +459,11 @@ def train_resam(cfg: Box, fabric: L.Fabric, model: Model, optimizer: _FabricOpti
                 loss_iou = torch.tensor(0., device=fabric.device)
                 loss_sim = torch.tensor(0., device=fabric.device)
 
-                batch_feats = [get_bbox_feature(embeddings, bbox) for bbox in bboxes]
-                batch_feats_hard = [get_bbox_feature(hard_embeddings, bbox) for bbox in bboxes]
+                teacher_embed_map = teacher_model._features["image_embed"]
+                student_embed_map = model._features["image_embed"]
+
+                batch_feats = [get_bbox_feature(teacher_embed_map, bbox) for bbox in bboxes]
+                batch_feats_hard = [get_bbox_feature(student_embed_map, bbox) for bbox in bboxes]
                 if len(feature_queue) == len_q:
                     batch_feats = F.normalize(torch.stack(batch_feats, dim=0), dim=1)
                     batch_feats_hard = F.normalize(torch.stack(batch_feats_hard, dim=0), dim=1)
@@ -477,11 +488,20 @@ def train_resam(cfg: Box, fabric: L.Fabric, model: Model, optimizer: _FabricOpti
                         loss_focal += focal_loss(pred_mask, soft_mask)  
                         loss_dice += dice_loss(pred_mask, soft_mask)   
                         batch_iou = calc_iou(pred_mask, soft_mask)
-                        loss_iou += F.mse_loss(iou_prediction, batch_iou, reduction='sum') / num_masks 
+                        loss_iou += F.mse_loss(
+                            iou_prediction.view(-1),
+                            batch_iou.view(-1),
+                            reduction='sum',
+                        )
 
                 del  pred_masks, iou_predictions 
                 del pred_stack, overlap_map, invert_overlap_map
                 torch.cuda.empty_cache()
+
+                # Keep loss scale consistent with `train_resam.py`.
+                loss_focal = loss_focal / num_masks
+                loss_dice = loss_dice / num_masks
+                loss_iou = loss_iou / num_masks
 
                 if analyze:
                     gt_masks_bin = (gt_masks_new[0] > 0.5).float()
@@ -516,6 +536,12 @@ def train_resam(cfg: Box, fabric: L.Fabric, model: Model, optimizer: _FabricOpti
 
                 optimizer.step()
                 scheduler.step()
+
+                # EMA teacher update (keeps pseudo-labels stable).
+                with torch.no_grad():
+                    for param_q, param_k in zip(model.parameters(), teacher_model.parameters()):
+                        param_k.data.mul_(m).add_((1 - m) * param_q.detach().data)
+
                 optimizer.zero_grad()
                 torch.cuda.empty_cache()
                 del  prompts, soft_masks
