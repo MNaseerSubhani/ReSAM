@@ -63,7 +63,7 @@ def process_forward(img_tensor, prompt, model):
         
 
 # persistent feature queue
-Q_LEN=128
+Q_LEN=256
 feature_queue = deque(maxlen=Q_LEN)  
 feature_queue_hard = deque(maxlen=Q_LEN)
 
