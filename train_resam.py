@@ -67,8 +67,6 @@ Q_LEN=128
 feature_queue = deque(maxlen=Q_LEN)  
 feature_queue_hard = deque(maxlen=Q_LEN)
 
-
-
 analyze = False
 m = 0.99
 def train_resam(cfg: Box, fabric: L.Fabric, model: Model, optimizer: _FabricOptimizer,
