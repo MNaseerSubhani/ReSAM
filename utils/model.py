@@ -120,18 +120,22 @@ class Model(nn.Module):
         ious = []
         res_masks = []
         for prompt, embedding in zip(prompts, image_embeddings):
+            dev = embedding.device
 
             if self.base =="sam":
                 if isinstance(prompt, torch.Tensor):
-                    prompt = prompt.to(device=embedding.device)
+                    prompt = prompt.to(device=dev)
                     sparse_embeddings, dense_embeddings = self.model.prompt_encoder(
                     points=None,
                     boxes=prompt,
                     masks=None,
                 )
                 elif isinstance(prompt, tuple):
+                    point_coords, point_labels = prompt
+                    point_coords = point_coords.to(device=dev)
+                    point_labels = point_labels.to(device=dev)
                     sparse_embeddings, dense_embeddings = self.model.prompt_encoder(
-                    points=prompt,
+                    points=(point_coords, point_labels),
                     boxes=None,
                     masks=None,
                 )
@@ -144,15 +148,18 @@ class Model(nn.Module):
                 )
             else:
                 if isinstance(prompt, torch.Tensor):
-                    prompt = prompt.to(device=embedding.device)
+                    prompt = prompt.to(device=dev)
                     sparse_embeddings, dense_embeddings = self.model.sam_prompt_encoder(
                     points=None,
                     boxes=prompt,
                     masks=None,
                 )
                 elif isinstance(prompt, tuple):
+                    point_coords, point_labels = prompt
+                    point_coords = point_coords.to(device=dev)
+                    point_labels = point_labels.to(device=dev)
                     sparse_embeddings, dense_embeddings = self.model.sam_prompt_encoder(
-                    points=prompt,
+                    points=(point_coords, point_labels),
                     boxes=None,
                     masks=None,
                 )
