@@ -110,6 +110,8 @@ bash scripts/train_resam_nwpu.sh resam2 1 #Point = 1,2,3
 
 ### 5.Visualization
 
+**CLI** (saves `*_points.jpg`, `*_sam_overlay.jpg`, `*_resam_overlay.jpg`):
+
 ```bash
 python visualize.py \
   --dataset HRSID \
@@ -120,6 +122,25 @@ python visualize.py \
   --prompt point \
   --num_points 1
 ```
+
+Use `--indices 0 1 2 5` instead of `--num_samples` to pick specific validation images.
+
+**Google Colab / Jupyter** — inline grid: **point prompt → SAM → ReSAM** (auto-shows in notebooks):
+
+```python
+from visualize import run_visualization
+
+run_visualization(
+    ckpt="path/to/best_model.pth",
+    dataset="HRSID",
+    cfg_file="configs.config_hrsid",
+    num_samples=4,   # how many images (indices 0, 1, 2, 3)
+    prompt="point",
+    num_points=1,
+)
+```
+
+Or run the script in a cell with `%run visualize.py --ckpt ... --num_samples 4` (plots appear automatically in Colab).
 
 ## 💡 Acknowledgement
 - [PointSAM](https://github.com/Lans1ng/PointSAM)
