@@ -1,5 +1,6 @@
 import os
 import argparse
+import importlib
 import numpy as np
 import torch
 import cv2
@@ -22,7 +23,9 @@ def parse_args():
 
     parser.add_argument("--dataset", type=str, default="NWPU",
                         choices=["NWPU", "WHU", "HRSID"])
-    parser.add_argument("--cfg_file", type=str, default="configs/config_nwpu.py")
+    parser.add_argument("--cfg", "--cfg_file", dest="cfg_file", type=str,
+                        default="configs.config_nwpu",
+                        help="Dataset config module (e.g. configs.config_hrsid) or path (configs/config_hrsid.py)")
     parser.add_argument("--ckpt", type=str, required=True,
                         help="Path to trained ReSAM checkpoint")
     parser.add_argument("--sam_ckpt", type=str, default=None,
@@ -40,6 +43,16 @@ def parse_args():
                         help="Also display a matplotlib summary grid")
 
     return parser.parse_args()
+
+
+# -----------------------------
+# Config
+# -----------------------------
+def load_dataset_cfg(cfg_file: str) -> Box:
+    """Load dataset cfg from a module path or .py file path (same as train_resam --cfg)."""
+    module_path = cfg_file.replace(".py", "").replace("\\", "/").replace("/", ".")
+    module = importlib.import_module(module_path)
+    return module.cfg
 
 
 # -----------------------------
@@ -161,11 +174,9 @@ def main():
     if not os.path.exists(args.ckpt):
         raise FileNotFoundError(f"Checkpoint not found: {args.ckpt}")
 
-    # Build config (same pattern as train_resam.py)
+    # Build config (same pattern as train_resam.py --cfg configs.config_hrsid)
     cfg = Box(base_config)
-    cfg_module = args.cfg_file.replace(".py", "").replace("/", ".")
-    exec(f"from {cfg_module} import cfg as dataset_cfg")
-    cfg.merge_update(dataset_cfg)
+    cfg.merge_update(load_dataset_cfg(args.cfg_file))
 
     cfg.dataset = args.dataset
     cfg.prompt = args.prompt
