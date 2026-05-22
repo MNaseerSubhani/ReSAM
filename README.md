@@ -110,13 +110,13 @@ bash scripts/train_resam_nwpu.sh resam2 1 #Point = 1,2,3
 
 ### 5.Visualization
 
-```
+```bash
 python visualize.py \
   --dataset HRSID \
   --cfg_file configs/config_hrsid.py \
   --ckpt path/to/save/best_model.pth \
   --out_dir visualizations/hrsid \
-  --indices 0 1 2 5 \
+  --num_samples 4 \
   --prompt point \
   --num_points 1
 ```
