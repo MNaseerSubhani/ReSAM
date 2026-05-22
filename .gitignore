@@ -75,6 +75,7 @@ src
 target/
 outputs/
 pretrained_all/
+visualizations/
 
 ./pretrained_all/
 # Jupyter Notebook

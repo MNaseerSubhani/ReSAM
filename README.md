@@ -101,16 +101,31 @@ After downloading, move the models to the `pretrain` folder.
 ### 4.Training
 Here’s an example of training ReSAM on the NWPU dataset:
 ```bash
-bash scripts/train_resam_nwpu.sh resam  1   
+bash scripts/train_resam_nwpu.sh resam  1  #Point = 1,2,3 
 ```
 
 ```bash
-bash scripts/train_resam_nwpu.sh resam2 1
+bash scripts/train_resam_nwpu.sh resam2 1 #Point = 1,2,3 
+```
+
+### 5.Visualization
+
+```
+python visualize.py \
+  --dataset HRSID \
+  --cfg_file configs/config_hrsid.py \
+  --ckpt path/to/save/best_model.pth \
+  --out_dir visualizations/hrsid \
+  --indices 0 1 2 5 \
+  --prompt point \
+  --num_points 1
 ```
 
 ## 💡 Acknowledgement
 - [PointSAM](https://github.com/Lans1ng/PointSAM)
 - [WeSAM](https://github.com/zhang-haojie/wesam)
+
+
 
 
 ## 🖊️ Citation
