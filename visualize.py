@@ -5,7 +5,6 @@ import numpy as np
 import torch
 import cv2
 import matplotlib.pyplot as plt
-from typing import List, Optional, Sequence
 from box import Box
 
 from configs.base_config import base_config
@@ -37,16 +36,11 @@ def parse_args():
                         choices=["point", "box"])
     parser.add_argument("--num_points", type=int, default=1)
     parser.add_argument("--img_size", type=int, default=1024)
-    parser.add_argument("--indices", nargs="+", type=int, default=None,
-                        help="Dataset indices to visualize (e.g. 0 1 2). If omitted, uses --num_samples.")
-    parser.add_argument("--num_samples", type=int, default=1,
-                        help="How many validation images to show (indices 0 .. num_samples-1) when --indices is not set")
+    parser.add_argument("--indices", nargs="+", type=int, default=[0])
     parser.add_argument("--device", type=str, default=None)
     parser.add_argument("--overlay_alpha", type=float, default=0.4)
     parser.add_argument("--show_grid", action="store_true",
-                        help="Display matplotlib grid (on by default in Jupyter/Colab)")
-    parser.add_argument("--no_display", action="store_true",
-                        help="Do not show inline plots (Jupyter/Colab only saves files)")
+                        help="Also display a matplotlib summary grid")
 
     return parser.parse_args()
 
@@ -168,128 +162,45 @@ def save_visualizations(out_dir, base_name, img_bgr, prompts, sam_mask, resam_ma
     return points_path, sam_path, resam_path
 
 
-def resolve_indices(indices: Optional[Sequence[int]], num_samples: int) -> List[int]:
-    if indices is not None and len(indices) > 0:
-        return list(indices)
-    n = max(1, int(num_samples))
-    return list(range(n))
+# -----------------------------
+# Main
+# -----------------------------
+def main():
+    args = parse_args()
 
-
-def in_notebook() -> bool:
-    try:
-        from IPython import get_ipython
-        shell = get_ipython().__class__.__name__
-        return shell in ("ZMQInteractiveShell", "GoogleColabShell")
-    except Exception:
-        return False
-
-
-def should_display(show_grid: bool, no_display: bool) -> bool:
-    if no_display:
-        return False
-    if show_grid:
-        return True
-    return in_notebook()
-
-
-def show_comparison_grid(results, cfg, overlay_alpha=0.4):
-    """Colab/Jupyter: point prompt | pretrained SAM | ReSAM for each sample."""
-    if not results:
-        return
-
-    rows = len(results)
-    fig, axes = plt.subplots(rows, 3, figsize=(15, 5 * rows))
-    if rows == 1:
-        axes = np.expand_dims(axes, 0)
-
-    titles = ("Point prompt", "Pretrained SAM", "ReSAM")
-    for i, item in enumerate(results):
-        img = image_from_tensor(item["img"])
-        ax_point, ax_sam, ax_resam = axes[i]
-
-        ax_point.imshow(img)
-        if cfg.prompt == "point":
-            pos, neg = split_prompt_points(item["prompts"])
-            if len(pos) > 0:
-                ax_point.scatter(pos[:, 0], pos[:, 1], c="lime", s=80, edgecolors="black", linewidths=0.5)
-            if len(neg) > 0:
-                ax_point.scatter(neg[:, 0], neg[:, 1], c="red", s=80, edgecolors="black", linewidths=0.5)
-        elif cfg.prompt == "box":
-            boxes = item["prompts"] if isinstance(item["prompts"], torch.Tensor) else item["prompts"][0]
-            boxes = boxes.detach().cpu().numpy()
-            for box in boxes:
-                x1, y1, x2, y2 = box
-                ax_point.add_patch(plt.Rectangle((x1, y1), x2 - x1, y2 - y1, fill=False, edgecolor="lime", linewidth=2))
-        ax_point.set_title(f"{titles[0]} (idx={item['idx']})")
-        ax_point.axis("off")
-
-        rgb = cv2.cvtColor(item["img_bgr"], cv2.COLOR_BGR2RGB)
-        ax_sam.imshow(rgb)
-        ax_sam.imshow(item["sam"], alpha=overlay_alpha, cmap="Blues")
-        ax_sam.set_title(titles[1])
-        ax_sam.axis("off")
-
-        ax_resam.imshow(rgb)
-        ax_resam.imshow(item["resam"], alpha=overlay_alpha, cmap="Greens")
-        ax_resam.set_title(titles[2])
-        ax_resam.axis("off")
-
-    plt.tight_layout()
-    plt.show()
-
-
-def run_visualization(
-    ckpt: str,
-    dataset: str = "NWPU",
-    cfg_file: str = "configs.config_nwpu",
-    sam_ckpt: Optional[str] = None,
-    out_dir: str = "visualizations",
-    prompt: str = "point",
-    num_points: int = 1,
-    img_size: int = 1024,
-    indices: Optional[Sequence[int]] = None,
-    num_samples: int = 1,
-    device: Optional[str] = None,
-    overlay_alpha: float = 0.4,
-    display: Optional[bool] = None,
-):
-    """
-    Run inference and optionally show inline plots (Colab/Jupyter).
-
-    Example (Colab cell):
-        from visualize import run_visualization
-        run_visualization(ckpt="best_model.pth", cfg_file="configs.config_hrsid",
-                          dataset="HRSID", num_samples=4)
-    """
-    device = device or ("cuda" if torch.cuda.is_available() else "cpu")
+    device = args.device if args.device else ("cuda" if torch.cuda.is_available() else "cpu")
     print("Using device:", device)
 
-    if not os.path.exists(ckpt):
-        raise FileNotFoundError(f"Checkpoint not found: {ckpt}")
+    if not os.path.exists(args.ckpt):
+        raise FileNotFoundError(f"Checkpoint not found: {args.ckpt}")
 
+    # Build config (same pattern as train_resam.py --cfg configs.config_hrsid)
     cfg = Box(base_config)
-    cfg.merge_update(load_dataset_cfg(cfg_file))
-    cfg.dataset = dataset
-    cfg.prompt = prompt
-    cfg.num_points = num_points
+    cfg.merge_update(load_dataset_cfg(args.cfg_file))
 
-    if sam_ckpt:
-        cfg.model.checkpoint = os.path.dirname(sam_ckpt) + os.sep
+    cfg.dataset = args.dataset
+    cfg.prompt = args.prompt
+    cfg.num_points = args.num_points
 
+    if args.sam_ckpt:
+        cfg.model.checkpoint = os.path.dirname(args.sam_ckpt) + os.sep
+
+    # Load dataset (validation set, same as training validation)
     load_datasets = call_load_dataset(cfg)
-    _, val_loader, _ = load_datasets(cfg, img_size=img_size, return_pt=True)
-    sample_indices = resolve_indices(indices, num_samples)
+    _, val_loader, _ = load_datasets(cfg, img_size=args.img_size, return_pt=True)
 
     print(f"Validation samples: {len(val_loader.dataset)}")
-    print(f"Visualizing indices: {sample_indices}")
-    os.makedirs(out_dir, exist_ok=True)
+    os.makedirs(args.out_dir, exist_ok=True)
 
-    sam_model = load_model(cfg, device, ckpt_path=sam_ckpt)
-    resam_model = load_model(cfg, device, ckpt_path=ckpt)
+    # Pretrained SAM (LoRA B=0 at init; no ReSAM weights)
+    sam_model = load_model(cfg, device, ckpt_path=args.sam_ckpt)
+    # Trained ReSAM
+    resam_model = load_model(cfg, device, ckpt_path=args.ckpt)
+
     results = []
 
     with torch.no_grad():
-        for idx in sample_indices:
+        for idx in args.indices:
             if idx < 0 or idx >= len(val_loader.dataset):
                 print(f"Skipping invalid index {idx}")
                 continue
@@ -311,8 +222,14 @@ def run_visualization(
             base_name = base_name_from_path(image_path)
 
             paths = save_visualizations(
-                out_dir, base_name, img_bgr, prompts[0], sam_mask, resam_mask,
-                cfg.prompt, overlay_alpha,
+                args.out_dir,
+                base_name,
+                img_bgr,
+                prompts[0],
+                sam_mask,
+                resam_mask,
+                cfg.prompt,
+                args.overlay_alpha,
             )
             print(f"[idx={idx}] {image_path}")
             print(f"  points: {paths[0]}")
@@ -329,37 +246,39 @@ def run_visualization(
                 "resam": resam_mask,
             })
 
-    if display is None:
-        display = in_notebook()
-    if display and results:
-        show_comparison_grid(results, cfg, overlay_alpha)
+    if args.show_grid and results:
+        rows = len(results)
+        fig, axes = plt.subplots(rows, 3, figsize=(18, 6 * rows))
 
-    return results
+        if rows == 1:
+            axes = np.expand_dims(axes, 0)
 
+        for i, item in enumerate(results):
+            img = image_from_tensor(item["img"])
+            ax_main, ax_sam, ax_resam = axes[i]
 
-# -----------------------------
-# Main
-# -----------------------------
-def main():
-    args = parse_args()
-    indices = resolve_indices(args.indices, args.num_samples)
-    display = should_display(args.show_grid, args.no_display)
+            ax_main.imshow(img)
+            if cfg.prompt == "point":
+                pos, neg = split_prompt_points(item["prompts"])
+                if len(pos) > 0:
+                    ax_main.scatter(pos[:, 0], pos[:, 1], c="lime", s=30)
+                if len(neg) > 0:
+                    ax_main.scatter(neg[:, 0], neg[:, 1], c="red", s=30)
+            ax_main.set_title(f"Input (idx={item['idx']})")
+            ax_main.axis("off")
 
-    run_visualization(
-        ckpt=args.ckpt,
-        dataset=args.dataset,
-        cfg_file=args.cfg_file,
-        sam_ckpt=args.sam_ckpt,
-        out_dir=args.out_dir,
-        prompt=args.prompt,
-        num_points=args.num_points,
-        img_size=args.img_size,
-        indices=indices,
-        num_samples=args.num_samples,
-        device=args.device,
-        overlay_alpha=args.overlay_alpha,
-        display=display,
-    )
+            ax_sam.imshow(cv2.cvtColor(item["img_bgr"], cv2.COLOR_BGR2RGB))
+            ax_sam.imshow(item["sam"], alpha=args.overlay_alpha, cmap="Blues")
+            ax_sam.set_title("Pretrained SAM")
+            ax_sam.axis("off")
+
+            ax_resam.imshow(cv2.cvtColor(item["img_bgr"], cv2.COLOR_BGR2RGB))
+            ax_resam.imshow(item["resam"], alpha=args.overlay_alpha, cmap="Greens")
+            ax_resam.set_title("ReSAM")
+            ax_resam.axis("off")
+
+        plt.tight_layout()
+        plt.show()
 
 
 if __name__ == "__main__":
