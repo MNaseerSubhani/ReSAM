@@ -209,8 +209,8 @@ def main():
             image, bbox, gt_mask, image_path = sample
 
             images = image.unsqueeze(0).to(device)
-            bboxes = (bbox,)
-            gt_masks = (gt_mask,)
+            bboxes = (bbox.to(device),)
+            gt_masks = (gt_mask.to(device),)
             prompts = get_prompts(cfg, bboxes, gt_masks)
 
             _, sam_pred_masks, _, _ = sam_model(images, prompts)
