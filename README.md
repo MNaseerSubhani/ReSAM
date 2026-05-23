@@ -7,6 +7,8 @@
 [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/drive/12RtZknvF2JwVtjWMW4MfyjE7buQSO9_x?usp=drive_link)
 </div>
 
+[![Hugging Face](https://img.shields.io/badge/🤗-HuggingFace-yellow)](https://huggingface.co/spaces/naseer39/ReSAM-app)
+
 
 
 ## 🚀 Latest Updates
